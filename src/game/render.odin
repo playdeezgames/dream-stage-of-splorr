@@ -105,7 +105,15 @@ draw_game :: proc(f: ^Frame, g: ^Game) {
 			draw_gfx(f, .Fold, x, y)
 			c := g.fold[col][row]
 			if c.rank != 0 && !landing_pending(g, col, row) {
-				draw_sheep(f, c, x, y - int(g.fall[col][row]), false)
+				if sleepy(g, col, row) {
+					// Nodding off: eyes shut, and a z now and then.
+					draw_sleeping_sheep(f, c, x, y - int(g.fall[col][row]))
+					if int(g.age[col][row] * 2) % 3 == 0 {
+						print_glyph(f, 'z', x + 10, y - 2, COLOR_LIGHT)
+					}
+				} else {
+					draw_sheep(f, c, x, y - int(g.fall[col][row]), false)
+				}
 			}
 		}
 	}
@@ -159,6 +167,14 @@ draw_game :: proc(f: ^Frame, g: ^Game) {
 		draw_sheep(f, s.card, int(s.x) * TILE, PASTURE_Y + int(s.y) * TILE, s.flip)
 	}
 	draw_gfx(f, .Insomniac, int(g.px) * TILE, PASTURE_Y + int(g.py) * TILE, g.flip)
+	for i in 0 ..< int(g.dog_count) {
+		d := g.dogs[i]
+		x, y := int(d.x) * TILE, PASTURE_Y + int(d.y) * TILE
+		if d.carrying {
+			draw_sheep(f, d.card, x, y - 7, d.flip)
+		}
+		draw_gfx(f, .Sheepdog, x, y, d.flip)
+	}
 
 	// Points from hands, floating up off the fold.
 	for i in 0 ..< int(g.pop_count) {
@@ -380,7 +396,7 @@ SHOP_X :: 20
 SHOP_Y :: 52
 SHOP_W :: PANEL_X - 2 * SHOP_X
 SHOP_H :: 146
-SHOP_ROW_H :: 14
+SHOP_ROW_H :: 13
 
 // The nightstand's menu.
 draw_shop :: proc(f: ^Frame, g: ^Game) {
@@ -418,6 +434,17 @@ draw_shop :: proc(f: ^Frame, g: ^Game) {
 			print(f, "Count by", name_x, y, COLOR_WHITE)
 			more := int(g.count_level) + 1 < len(COUNT_BY)
 			print_upgrade(f, detail_x, y, count_by(g), COUNT_BY[min(int(g.count_level) + 1, len(COUNT_BY) - 1)], more)
+		case .Sheepdog:
+			print(f, "Sheepdog", name_x, y, COLOR_WHITE)
+			print_upgrade(f, detail_x, y, i64(g.dog_count), i64(g.dog_count + 1), g.dog_count < DOGS_MAX)
+			print(f, "dogs", detail_x + 60, y, COLOR_MID)
+		case .Dog_Speed:
+			print(f, "Dog speed", name_x, y, COLOR_WHITE)
+			if g.dog_count == 0 {
+				print(f, "no dog yet", detail_x, y, COLOR_MID)
+			} else {
+				print_upgrade(f, detail_x, y, i64(g.dog_speed_level) + 1, i64(g.dog_speed_level) + 2, g.dog_speed_level < DOG_SPEED_LEVELS)
+			}
 		case .Clear:
 			print(f, "Clear a pen", name_x, y, COLOR_WHITE)
 			cw := print(f, "< pen ", detail_x, y, COLOR_LIGHT)
@@ -430,7 +457,7 @@ draw_shop :: proc(f: ^Frame, g: ^Game) {
 			text := commas(b[:], cost)
 			c: u8 = COLOR_YELLOW if g.zzz >= cost else COLOR_MID
 			print(f, text, SHOP_X + SHOP_W - 8 - text_width(text), y, c)
-		} else if row != .Leave {
+		} else if row != .Leave && !(row == .Dog_Speed && g.dog_count == 0) {
 			print(f, "MAX", SHOP_X + SHOP_W - 8 - text_width("MAX"), y, COLOR_MID)
 		}
 	}
@@ -440,7 +467,7 @@ draw_shop :: proc(f: ^Frame, g: ^Game) {
 		print_glyph(f, 31, cx + 5, FOLD_Y - 8, COLOR_RED)
 		cost, _ := price(g, .Clear)
 		if g.zzz < cost && fold_full(g) {
-			print(f, "The fold is full: a clear takes all yer Zzz.", x, SHOP_Y + 22 + 5 * SHOP_ROW_H + 2, COLOR_RED)
+			print(f, "The fold is full: a clear takes all yer Zzz.", x, SHOP_Y + 22 + len(Shop_Row) * SHOP_ROW_H + 2, COLOR_RED)
 		}
 	}
 	print(f, "Up/Down choose, Space buy, Esc leave", x, SHOP_Y + SHOP_H - 14, COLOR_MID)

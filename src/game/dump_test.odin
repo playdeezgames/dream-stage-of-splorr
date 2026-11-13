@@ -43,6 +43,12 @@ dump_play :: proc(t: ^testing.T) {
 		g.last_peg = {calls = {.Fifteen, .Pair}, points = 4}
 		g.peg_t = 2
 		g.points = 87 + 3 * BOARD_HOLES
+		add_dog(&g)
+		add_dog(&g)
+		g.dogs[0] = {x = 14, y = 1, carrying = true, card = {rank = 4, suit = .Clubs}, plan = -1}
+		g.dogs[1] = {x = 4, y = 3, flip = true, plan = -1}
+		g.age[0][0] = DOZE_TIME - 4
+		g.age[3][1] = DOZE_TIME - 2
 		g.lap = 3
 		g.zzz = 412
 		g.count_level = 2
@@ -95,6 +101,8 @@ dump_shop :: proc(t: ^testing.T) {
 			}
 		}
 		g.zzz = 20
+		add_dog(&g)
+		g.dog_speed_level = 2
 		open_shop(&g)
 		g.shop.row = .Clear
 		g.shop.col = 3

@@ -16,12 +16,14 @@ package game
 //
 // Slice 4 (economy.odin): points peg a 121-hole board, each lap a deeper sleep stage with a new moon
 // and a bigger Zzz multiplier; Zzz buys upgrades at the nightstand; the millionth sheep ends the night.
+//
+// Slice 5 (dogs.odin): sheepdogs fetch sheep and send them over the fence on their own.
 
 // Tuning. Claude's placeholders; the user's to change.
 TOTAL_SHEEP :: 1_000_000
 FLOCK_TARGET :: 10 // sheep wandering the pasture at once
 ARMFUL_START :: 3 // sheep the insomniac can carry at first
-SPAWN_EVERY :: 0.7 // seconds between new sheep wandering in
+SPAWN_EVERY :: 0.25 // seconds between new sheep wandering in
 WANDER_MIN :: 1.5 // seconds a sheep stands before it wanders a step
 WANDER_SPREAD :: 3.0 // plus up to this many more
 JUMP_TIME :: 0.55 // seconds a jump over the fence takes
@@ -30,6 +32,8 @@ CLEAR_PAUSE :: 0.4 // seconds between a clear and the chain check after the shee
 FALL_SPEED :: 240.0 // pixels a second a dropped sheep falls, for drawing
 SLEEP_TIME :: 1.2 // seconds a cleared sheep takes to float off
 LINE_LENGTH :: 4
+DOZE_TIME :: 45.0 // seconds a sheep stays in the fold before it dozes off, unscored (the user's rule)
+DOZE_WARN :: 10.0 // its last seconds it looks sleepy
 
 // Layout, in tiles of the pasture grid. The fold's first column stands over pasture column
 // FOLD_FIRST_COL, so walking along the fence chooses the column.
@@ -63,6 +67,7 @@ Card :: struct {
 }
 
 Sheep :: struct {
+	id:   u32, // for sheepdogs to keep track of the sheep they are after
 	card: Card,
 	x, y: i32,
 	flip: bool, // facing left
@@ -101,6 +106,7 @@ Sound :: enum u8 {
 	Open,
 	Close,
 	Asleep,
+	Doze,
 }
 
 // One line found in the fold: a run of one suit from (col, row) in direction (dx, dy).
@@ -156,6 +162,8 @@ Game :: struct {
 	jumps:       [JUMPS_MAX]Jump,
 	jump_count:  i32,
 	fall:        [FOLD_COLS][FOLD_ROWS]f32, // pixels above its spot a dropped sheep still is (drawing)
+	age:         [FOLD_COLS][FOLD_ROWS]f32, // seconds each sheep has been in the fold
+	dozed:       i64, // sheep that dozed off in the fold
 	sleepers:    [SLEEPERS_MAX]Sleeper,
 	sleeper_count: i32,
 	recheck_t:   f32, // > 0 while a chain is settling
@@ -190,6 +198,10 @@ Game :: struct {
 	finish_t:     f32,
 	finish_time:  f64,
 	night:        i32, // nights finished before this one
+	next_id:      u32,
+	dogs:         [DOGS_MAX]Dog,
+	dog_count:    i32,
+	dog_speed_level: i32,
 	bests:        Bests, // kept from night to night
 }
 
@@ -288,7 +300,9 @@ spawn_sheep :: proc(g: ^Game) -> bool {
 		if !tile_free(g, x, y) {
 			continue
 		}
+		g.next_id += 1
 		g.flock[g.flock_count] = {
+			id   = g.next_id,
 			card = random_card(g),
 			x    = x,
 			y    = y,
@@ -415,7 +429,19 @@ send_sheep :: proc(g: ^Game) -> bool {
 	}
 	g.held_count -= 1
 	g.held[g.held_count] = {}
+	send_card(g, card, g.px, col)
+	return true
+}
+
+// A sheep jumps the fence from pasture column from_col into fold column col: counted, pegged, and
+// on its way to the column's lowest empty spot. False when the column is full.
+send_card :: proc(g: ^Game, card: Card, from_col, col: i32) -> bool {
+	row := landing_row(g, col)
+	if row < 0 {
+		return false
+	}
 	g.fold[col][row] = card
+	g.age[col][row] = 0
 	count_sheep_in(g)
 	r := peg(&g.pegging, card)
 	g.last_peg = r
@@ -427,12 +453,14 @@ send_sheep :: proc(g: ^Game) -> bool {
 	if g.jump_count < JUMPS_MAX {
 		g.jumps[g.jump_count] = {
 			card     = card,
-			from_col = g.px,
+			from_col = from_col,
 			col      = col,
 			row      = row,
 			flip     = false,
 		}
 		g.jump_count += 1
+	} else {
+		resolve_lines(g) // no room to draw the jump: it lands at once
 	}
 	play(g, .Jump)
 	return true
@@ -471,6 +499,7 @@ tick :: proc(g: ^Game, dt_in: f64) {
 			g.fall[c][r] = max(0, g.fall[c][r] - FALL_SPEED * dt)
 		}
 	}
+	doze(g, dt)
 	if g.recheck_t > 0 {
 		g.recheck_t -= dt
 		if g.recheck_t <= 0 {
@@ -523,6 +552,8 @@ tick :: proc(g: ^Game, dt_in: f64) {
 		g.spawn_t = 0
 		spawn_sheep(g)
 	}
+
+	dogs_tick(g, dt)
 
 	for k in 0 ..< int(g.flock_count) {
 		s := &g.flock[k]
@@ -642,6 +673,7 @@ resolve_lines :: proc(g: ^Game) -> bool {
 			}
 			g.fold[col][row] = {}
 			g.fall[col][row] = 0
+			g.age[col][row] = 0
 		}
 	}
 	collapse(g)
@@ -668,6 +700,8 @@ collapse :: proc(g: ^Game) {
 				g.fold[col][r] = {}
 				g.fall[col][w] = g.fall[col][r] + f32(r - w) * TILE
 				g.fall[col][r] = 0
+				g.age[col][w] = g.age[col][r]
+				g.age[col][r] = 0
 				for j in 0 ..< int(g.jump_count) {
 					if g.jumps[j].col == col && g.jumps[j].row == r {
 						g.jumps[j].row = w
@@ -677,4 +711,46 @@ collapse :: proc(g: ^Game) {
 			w += 1
 		}
 	}
+}
+
+// Sheep left in the fold too long doze off and float away, unscored (the user's rule, November 13,
+// 2026): the fold always drains, so lines are a race and the dogs never clog it for good. The sheep
+// above drop, and the fold is checked for lines again.
+doze :: proc(g: ^Game, dt: f32) {
+	if g.finished {
+		return
+	}
+	any := false
+	for col in 0 ..< i32(FOLD_COLS) {
+		for row in 0 ..< i32(FOLD_ROWS) {
+			if g.fold[col][row].rank == 0 || landing_pending(g, col, row) {
+				continue
+			}
+			g.age[col][row] += dt
+			if g.age[col][row] < DOZE_TIME {
+				continue
+			}
+			if g.sleeper_count < SLEEPERS_MAX {
+				g.sleepers[g.sleeper_count] = {card = g.fold[col][row], col = col, row = row}
+				g.sleeper_count += 1
+			}
+			g.fold[col][row] = {}
+			g.fall[col][row] = 0
+			g.age[col][row] = 0
+			g.dozed += 1
+			any = true
+		}
+	}
+	if any {
+		collapse(g)
+		if g.recheck_t <= 0 {
+			g.recheck_t = CLEAR_PAUSE
+		}
+		play(g, .Doze)
+	}
+}
+
+// True in a sheep's last seconds before it dozes off.
+sleepy :: proc(g: ^Game, col, row: i32) -> bool {
+	return g.age[col][row] >= DOZE_TIME - DOZE_WARN
 }

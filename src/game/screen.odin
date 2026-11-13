@@ -47,6 +47,7 @@ Gfx :: enum {
 	Grass,
 	Moon,
 	Nightstand,
+	Sheepdog,
 }
 
 // A colour swap for one draw: identity unless changed.

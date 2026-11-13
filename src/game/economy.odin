@@ -4,8 +4,8 @@ package game
 // stage, with a new moon card and a bigger Zzz multiplier. Zzz buys upgrades at the nightstand in the
 // pasture's corner. Counting the millionth sheep ends the night; a new night keeps only the bests.
 //
-// Prices are Claude's placeholders, picked with a rough pacing model for a run of about two hours
-// before sheepdogs; the user's to change.
+// Prices are Claude's placeholders, picked with a rough pacing model (sheepdogs included) for a run of
+// about two hours; the user's to change.
 
 BOARD_HOLES :: 121
 FINISH_PAUSE :: 1.5 // seconds after the millionth sheep before Space starts a new night
@@ -20,8 +20,12 @@ GRASS_PRICE :: 40.0
 GRASS_GROWTH :: 1.8
 GRASS_LEVELS :: 5
 GRASS_SHEEP :: 2 // more sheep wandering the pasture per level
-COUNT_PRICE :: 60.0
-COUNT_GROWTH :: 1.9
+COUNT_PRICE :: 150.0
+COUNT_GROWTH :: 3.0
+DOG_PRICE :: 150.0
+DOG_GROWTH :: 2.8
+DOG_SPEED_PRICE :: 150.0
+DOG_SPEED_GROWTH :: 2.8
 CLEAR_PRICE :: 15 // times the stage's multiplier
 
 // Each jump counts this many sheep, by level ("count by twos, fives, tens", as dream logic allows).
@@ -31,6 +35,8 @@ Shop_Row :: enum u8 {
 	Armful,
 	Grass,
 	Count_By,
+	Sheepdog,
+	Dog_Speed,
 	Clear,
 	Leave,
 }
@@ -56,9 +62,9 @@ count_by :: proc(g: ^Game) -> i64 {
 	return COUNT_BY[g.count_level]
 }
 
-// Zzz for each point: 1 while drowsy, then one more for each lap of the board.
+// Zzz for each point: 1 while drowsy, then one more for each sleep cycle (four laps of the board).
 multiplier :: proc(g: ^Game) -> i64 {
-	return i64(g.lap) + 1
+	return 1 + i64(stage_cycle(g.lap))
 }
 
 // Where the peg stands on this lap, 0 to 120.
@@ -152,6 +158,16 @@ price :: proc(g: ^Game, row: Shop_Row) -> (i64, bool) {
 			return 0, false
 		}
 		return grow_price(COUNT_PRICE, COUNT_GROWTH, g.count_level), true
+	case .Sheepdog:
+		if g.dog_count >= DOGS_MAX {
+			return 0, false
+		}
+		return grow_price(DOG_PRICE, DOG_GROWTH, g.dog_count), true
+	case .Dog_Speed:
+		if g.dog_count == 0 || g.dog_speed_level >= DOG_SPEED_LEVELS {
+			return 0, false
+		}
+		return grow_price(DOG_SPEED_PRICE, DOG_SPEED_GROWTH, g.dog_speed_level), true
 	case .Clear:
 		return CLEAR_PRICE * multiplier(g), true
 	case .Leave:
@@ -235,6 +251,10 @@ buy :: proc(g: ^Game, row: Shop_Row) -> bool {
 		g.flock_target += GRASS_SHEEP
 	case .Count_By:
 		g.count_level += 1
+	case .Sheepdog:
+		add_dog(g)
+	case .Dog_Speed:
+		g.dog_speed_level += 1
 	}
 	play(g, .Buy)
 	return true
@@ -276,6 +296,7 @@ buy_clear :: proc(g: ^Game, cost: i64) -> bool {
 		}
 		g.fold[col][row] = {}
 		g.fall[col][row] = 0
+		g.age[col][row] = 0
 	}
 	g.clears += 1
 	play(g, .Clear)
