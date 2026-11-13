@@ -73,6 +73,9 @@ Must have, in order:
 5. Sheepdogs.
 6. Saves, sound, the release layout and the cover.
 
+Progress:
+- November 13, 2026: **step 1 done**. The insomniac walks a 20 by 5 pasture. Walking into a sheep picks it up (armful 3). At the fence, under one of the fold's 7 columns, Space or walking north sends the first sheep held over the fence, counted as it jumps. It lands at the bottom of the column (so the Connect Four drop half of step 2 is in), and a full column refuses. Sheep wander, and new ones wander in up to 10 at a time. Suit colours: spades white, hearts orange, diamonds cyan, clubs lime. 12 native tests. Sprites: sheep, insomniac, fence, fold cell, grass, all drawn in the Anvil. No saves yet.
+
 Nice to have: a different sky and music per sleep stage, chain-clear celebrations, and a 19 Easter egg.
 
 ## Open (Claude's placeholders until the user says)

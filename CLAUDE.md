@@ -16,9 +16,30 @@ The vault at `/home/yermom/git/bok-of-splorr/splorr/` is the shared body of know
 - Judged on enjoyment, theme fit, AI direction and **scope and completeness for 72 hours**: a finished small game beats a large unfinished one.
 - After the deadline (rating, November 16 to 19) only bug fixes, balance numbers and small UI text changes are allowed; no new systems, levels or asset sets.
 
-## Commands and architecture
+## Commands
 
-None yet. The default stack is Odin compiled to `js_wasm32` on an HTML5 canvas (no WebGL), set up as in the vault's `Tech/Odin wasm recipe.md`, with the layout of `Tech/Release standard.md` from the start (`ITCH_DESCRIPTION.md`, `assets/cover.png` at 630x500, `assets/screenshots/`, `devlog/YYYYMMDD/`, `tools/ship.sh` and a one-line `shippit.sh` that pushes only with `--push`). `/home/yermom/git/bush-master-of-splorr` is a recent, complete example of that layout (`src/game/` pure rules with native tests, `src/web/` the thin `#+build js` layer, `web/index.html` the shim, `tools/test.sh`, `build.sh`, `serve.sh`, `pages.sh`). Replace this section with the real commands once they exist.
+Odin is at `/home/yermom/ODIN/odin` (put it on `PATH`).
+
+```bash
+tools/test.sh                  # native tests (odin test, one thread), wasm checks of both packages, then a real wasm build
+tools/build.sh [--size]        # wasm build into build/web (--size for shipping)
+tools/serve.sh                 # build and serve on http://localhost:${PORT:-8000}/
+tools/pages.sh                 # tests, size build, copy into docs/ for GitHub Pages; never commits or pushes
+./shippit.sh [--push]          # tests, size build, zip; butler push to itch.io only with --push (only on the user's "ship")
+python3 -I tools/gen_gfx.py    # regenerate src/game/gfx.odin and font.odin from art/counting-sheep.json and the DINOBYTE sheet
+odin test src/game -collection:tggd=src -define:ODIN_TEST_THREADS=1 -define:ODIN_TEST_NAMES=game.<test_name>  # one test
+```
+
+The browser pane's launch config `counting-sheep-web` (port 8771, in the vault's `.claude/launch.json`) serves `build/web`; run `tools/build.sh` first.
+
+## Architecture
+
+Odin compiled to `js_wasm32`, a 384 by 216 software framebuffer of Sweetie-16 palette indices drawn to a canvas (no WebGL), as in the vault's `Tech/Odin wasm recipe.md`. Real time: odin.js calls `step` with the frame's seconds; `game.tick` clamps dt to 0.25 s.
+
+- `src/game/` is the pure rules package (no `core:os`, no `core:fmt`; its own splitmix64 RNG in `Game`, so tests are deterministic with a seed). `game.odin` holds the tuning constants at the top (Claude's placeholders), `Card`/`Suit` (rank 0 is no card), the pasture grid, the fold (`fold[col][row]`, row 0 at the bottom; a sheep sent from pasture row 0 under column `px - FOLD_FIRST_COL` drops to `landing_row`), `command`, `tick` and the `Sound` queue. The fold takes a sent sheep at once; `jumps` are only for drawing the arc. `render.odin` lays out the screen (sky and fold on top, fence, pasture, the right panel, the bottom "in arms" strip) and draws card sheep by colour swap: wool (colour 12 in the sprite) becomes the suit colour, face cards get a black face. `screen.odin` is the framebuffer, palette, sprite blit with `Remap`, text and `commas`.
+- **Art** is drawn by Claude in the Anvil (world `counting-sheep.json` in `~/anvil-worlds/`, exported to `art/counting-sheep.json`; tileset `sheep`, 16x16). After changing it, export again and run `tools/gen_gfx.py`; the `Gfx` enum follows its `NAMES` list. Never hand-edit `gfx.odin` or `font.odin`.
+- `src/web/web.odin` (`package main`, `#+build js`) is the thin browser layer, imported as `tggd:game` (`-collection:tggd=src`). `web/index.html` maps arrows/WASD, Space (OK), Esc (Cancel), the gamepad and the touch pads to `platform_command` (the `Command` order must match), plays the `SOUNDS` table (must follow the `Sound` enum order), and opens the LootLocker feedback form on F (`web/lootlocker.js` is the vault's kit, unchanged; no LootLocker game set up yet).
+- Progress against the build order is in `DESIGN.md`.
 
 ## Standing rules (full text in the vault's `Home.md`)
 
