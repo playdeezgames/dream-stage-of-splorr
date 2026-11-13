@@ -9,7 +9,7 @@ Count a million card sheep over the fence into a Connect Four fold. Cribbage sco
 
 ## Page text
 
-**Latest version:** no GitHub Pages site yet (the user's call; when it is switched on, put https://playdeezgames.github.io/dream-stage-of-splorr/ here and as an external link).
+**Latest version:** https://playdeezgames.github.io/dream-stage-of-splorr/ (GitHub Pages since November 13, 2026; also add it as an external link on the page)
 
 **Counting Sheep of SPLORR!!** is an incremental about the oldest trick for falling asleep.
 
