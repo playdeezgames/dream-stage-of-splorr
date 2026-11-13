@@ -14,11 +14,30 @@ points_earn_zzz_and_laps_go_deeper :: proc(t: ^testing.T) {
 	add_points(&g, 30) // 130 points: past the 121st hole
 	testing.expect_value(t, g.lap, i32(1))
 	testing.expect_value(t, g.zzz, i64(130)) // earned at x1, the lap it was scored on
-	testing.expect_value(t, peg_hole(&g), i32(9))
+	testing.expect_value(t, peg_hole(&g), i32(4)) // 9 of N1's 242 points (a hole is worth 2 now)
 	testing.expect_value(t, stage_name(g.lap), "N1")
 	testing.expect_value(t, g.notice, Notice.Stage)
 	add_points(&g, 10)
 	testing.expect_value(t, g.zzz, i64(150)) // x2 now
+}
+
+@(test)
+laps_grow_with_the_multiplier :: proc(t: ^testing.T) {
+	g: Game
+	bare_game(&g)
+	testing.expect_value(t, lap_needed(&g), i64(121))
+	add_points(&g, 121)
+	testing.expect_value(t, g.lap, i32(1))
+	testing.expect_value(t, lap_needed(&g), i64(242)) // N1 is cycle 1: x2
+	add_points(&g, 241)
+	testing.expect_value(t, g.lap, i32(1))
+	add_points(&g, 1)
+	testing.expect_value(t, g.lap, i32(2))
+	testing.expect_value(t, g.lap_points, i64(0))
+	// One big score can go more than one stage deeper.
+	add_points(&g, 242 * 2 + 10)
+	testing.expect_value(t, g.lap, i32(4))
+	testing.expect_value(t, g.lap_points, i64(10))
 }
 
 @(test)
@@ -39,7 +58,7 @@ a_new_stage_brings_a_new_moon :: proc(t: ^testing.T) {
 	changed := 0
 	for _ in 0 ..< 20 {
 		before := g.moon
-		add_points(&g, BOARD_HOLES)
+		add_points(&g, i32(lap_needed(&g)))
 		if g.moon != before {
 			changed += 1
 		}

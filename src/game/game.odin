@@ -32,7 +32,7 @@ CLEAR_PAUSE :: 0.4 // seconds between a clear and the chain check after the shee
 FALL_SPEED :: 240.0 // pixels a second a dropped sheep falls, for drawing
 SLEEP_TIME :: 1.2 // seconds a cleared sheep takes to float off
 LINE_LENGTH :: 4
-DOZE_TIME :: 45.0 // seconds a sheep stays in the fold before it dozes off, unscored (the user's rule)
+DOZE_TIME :: #config(DOZE_TIME, 45.0) // seconds a sheep stays in the fold before it dozes off, unscored (the user's rule)
 DOZE_WARN :: 10.0 // its last seconds it looks sleepy
 
 // Layout, in tiles of the pasture grid. The fold's first column stands over pasture column
@@ -187,6 +187,7 @@ Game :: struct {
 	// Economy (economy.odin).
 	zzz:          i64,
 	lap:          i32, // laps of the pegboard done: the sleep stage
+	lap_points:   i64, // points into this lap
 	flock_target: i32,
 	armful_level: i32,
 	grass_level:  i32,
@@ -285,9 +286,11 @@ tile_free :: proc(g: ^Game, x, y: i32) -> bool {
 	return in_pasture(x, y) && sheep_at(g, x, y) < 0 && !(x == g.px && y == g.py) && !is_nightstand(x, y)
 }
 
-// Sheep not yet seen: the count still to go, less what the carried and wandering sheep will count.
+// Sheep still to come: new ones wander in until the millionth is counted. (Holding back sheep the
+// arms and the pasture already hold once stranded the dogs with nothing to fetch near the end, found
+// in the November 13, 2026 playtest; a spare sheep or two past the million costs nothing.)
 sheep_unseen :: proc(g: ^Game) -> i64 {
-	return TOTAL_SHEEP - g.counted - i64(g.held_count + g.flock_count) * count_by(g)
+	return TOTAL_SHEEP - g.counted
 }
 
 sheep_to_count :: proc(g: ^Game) -> i64 {
@@ -377,8 +380,14 @@ step :: proc(g: ^Game, dx, dy: i32) {
 		return
 	}
 	if i := sheep_at(g, nx, ny); i >= 0 {
-		pick_sheep(g, i)
-		return
+		if g.held_count < g.armful {
+			pick_sheep(g, i)
+			return
+		}
+		// Arms full: squeeze past, the sheep stepping into the insomniac's place (the November 13,
+		// 2026 playtest: wandering sheep kept blocking the way to the fence).
+		g.flock[i].x, g.flock[i].y = g.px, g.py
+		show_notice(g, .Arms_Full)
 	}
 	g.px, g.py = nx, ny
 }

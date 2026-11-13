@@ -20,9 +20,9 @@ GRASS_PRICE :: 40.0
 GRASS_GROWTH :: 1.8
 GRASS_LEVELS :: 5
 GRASS_SHEEP :: 2 // more sheep wandering the pasture per level
-COUNT_PRICE :: 150.0
-COUNT_GROWTH :: 3.0
-DOG_PRICE :: 150.0
+COUNT_PRICE :: #config(COUNT_PRICE, 150.0)
+COUNT_GROWTH :: #config(COUNT_GROWTH, 1.8)
+DOG_PRICE :: #config(DOG_PRICE, 60.0) // the first dog comes early: walking alone gets tedious
 DOG_GROWTH :: 2.8
 DOG_SPEED_PRICE :: 150.0
 DOG_SPEED_GROWTH :: 2.8
@@ -67,9 +67,16 @@ multiplier :: proc(g: ^Game) -> i64 {
 	return 1 + i64(stage_cycle(g.lap))
 }
 
+// Points for one lap of the board: 121 while drowsy, then a hole is worth as many points as the
+// multiplier, so stages stay a minute or two apart all night (in the playtest of November 13, 2026
+// a lap of 121 points flew by every 20 seconds late on: a new moon and a chime each time).
+lap_needed :: proc(g: ^Game) -> i64 {
+	return BOARD_HOLES * multiplier(g)
+}
+
 // Where the peg stands on this lap, 0 to 120.
 peg_hole :: proc(g: ^Game) -> i32 {
-	return i32(g.points % BOARD_HOLES)
+	return i32(g.lap_points * BOARD_HOLES / lap_needed(g))
 }
 
 // Drowsy, then the four stages of a sleep cycle, over and over: N1, N2, N3, REM.
@@ -94,9 +101,10 @@ add_points :: proc(g: ^Game, pts: i32) {
 	}
 	g.zzz += i64(pts) * multiplier(g)
 	g.points += i64(pts)
-	lap := i32(g.points / BOARD_HOLES)
-	if lap > g.lap {
-		g.lap = lap
+	g.lap_points += i64(pts)
+	for g.lap_points >= lap_needed(g) {
+		g.lap_points -= lap_needed(g)
+		g.lap += 1
 		g.moon = random_card(g)
 		show_notice(g, .Stage)
 		play(g, .Stage)

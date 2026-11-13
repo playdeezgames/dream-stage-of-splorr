@@ -56,6 +56,9 @@ arms_hold_only_an_armful :: proc(t: ^testing.T) {
 	testing.expect_value(t, g.held_count, g.armful)
 	testing.expect_value(t, g.flock_count, i32(1))
 	testing.expect_value(t, g.notice, Notice.Arms_Full)
+	// With full arms the insomniac squeezes past: the two swap places.
+	testing.expect_value(t, g.py, i32(1))
+	testing.expect_value(t, g.flock[0].y, i32(2))
 }
 
 @(test)
@@ -161,15 +164,24 @@ wandering_keeps_sheep_apart_and_the_flock_full :: proc(t: ^testing.T) {
 }
 
 @(test)
-no_more_sheep_than_a_million :: proc(t: ^testing.T) {
+sheep_keep_coming_until_the_millionth :: proc(t: ^testing.T) {
 	g: Game
 	bare_game(&g)
 	g.counted = TOTAL_SHEEP - 2
+	g.held_count = 3 // even with sheep in the arms, more wander in for the dogs
+	for i in 0 ..< 3 {
+		g.held[i] = {rank = 2, suit = .Hearts}
+	}
 	for _ in 0 ..< 100 {
 		tick(&g, 0.25)
 	}
-	testing.expect_value(t, g.flock_count, i32(2))
-	testing.expect_value(t, sheep_unseen(&g), i64(0))
+	testing.expect_value(t, g.flock_count, i32(FLOCK_TARGET))
+	g.counted = TOTAL_SHEEP
+	g.flock_count = 0
+	for _ in 0 ..< 100 {
+		tick(&g, 0.25)
+	}
+	testing.expect_value(t, g.flock_count, i32(0)) // none once the million is counted
 }
 
 @(test)

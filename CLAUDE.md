@@ -26,6 +26,7 @@ tools/build.sh [--size]        # wasm build into build/web (--size for shipping)
 tools/serve.sh                 # build and serve on http://localhost:${PORT:-8000}/
 tools/pages.sh                 # tests, size build, copy into docs/ for GitHub Pages; never commits or pushes
 ./shippit.sh [--push]          # tests, size build, zip; butler push to itch.io only with --push (only on the user's "ship")
+odin test src/game -collection:tggd=src -define:ODIN_TEST_THREADS=1 -define:PLAYTEST=true -o:speed -define:ODIN_TEST_NAMES=game.playtest_nights  # bot plays whole nights (about 2 minutes); -define:PLAYTEST_QUICK=true for summaries only; DOZE_TIME, COUNT_GROWTH, COUNT_PRICE, DOG_PRICE are #config for sweeps
 tools/make_shots.sh            # render assets/screenshots/01-play, 02-clear, 03-shop, 04-end natively (dump_test.odin)
 python3 -I tools/make_cover.py # assets/cover.png (630x500) from a natively rendered frame
 python3 -I tools/gen_gfx.py    # regenerate src/game/gfx.odin and font.odin from art/counting-sheep.json and the DINOBYTE sheet

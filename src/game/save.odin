@@ -5,7 +5,7 @@ package game
 // checked field by field first, so a damaged one cannot put the game in a broken state.
 
 SAVE_MAGIC :: u32(0x5353_4F43) // "COSS"
-SAVE_VERSION :: u32(1)
+SAVE_VERSION :: u32(2) // 2: lap_points (November 13, 2026)
 
 Save_Header :: struct {
 	magic:   u32,
@@ -71,7 +71,7 @@ save_is_sane :: proc(g: ^Game) -> bool {
 	if g.count_level < 0 || int(g.count_level) >= len(COUNT_BY) || g.grass_level < 0 || g.grass_level > GRASS_LEVELS {
 		return false
 	}
-	if g.dog_speed_level < 0 || g.dog_speed_level > DOG_SPEED_LEVELS || g.lap < 0 || g.zzz < 0 || g.points < 0 {
+	if g.dog_speed_level < 0 || g.dog_speed_level > DOG_SPEED_LEVELS || g.lap < 0 || g.zzz < 0 || g.points < 0 || g.lap_points < 0 {
 		return false
 	}
 	if g.counted < 0 || g.counted > TOTAL_SHEEP || g.pegging.count < 0 || g.pegging.count > 31 {

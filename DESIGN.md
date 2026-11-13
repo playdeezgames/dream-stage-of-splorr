@@ -82,6 +82,22 @@ Progress:
 - November 13, 2026: **step 5 done** (`dogs.odin`). Sheepdogs (up to 8, 150 Zzz then x2.8) and dog speed (2 tiles a second, +0.5 a level, six levels, 150 then x2.8) at the nightstand. A good dog fetches the sheep whose suit makes the longest run in the fold (nearest among equals), commits to that pen, and plans around the sheep other dogs are carrying. As the fold fills it gets pickier (any sheep while it is half empty, a run of 2 until three quarters full, then 3) and puts back a sheep that would only clog it. Dogs' sheep are counted and pegged like the insomniac's. **Sheep doze off after 45 s in the fold** (the user's choice; nodding off with a "z" in their last 10 s). Measured over ten simulated minutes with dogs alone: 1 dog about 175 sheep, 4 dogs about 650, 8 dogs about 1,150, the fold never full, about 2.5 points a sheep. **Claude's changes:** the Zzz multiplier now rises once per sleep cycle (four laps), not every lap, because laps came so fast with dogs that income ran away; count-by prices now 150, x3.0. The pacing model (with measured dog rates) puts the millionth sheep at about two hours, the last purchase about 25 minutes before the end. 60 native tests.
 - November 13, 2026: **step 6 done; every must-have step is built.** Saves (`save.odin`): the whole night as raw bytes behind a header (magic, version 1, size), saved in localStorage every 3 s and when the page hides; a save from another build, or one that fails the field-by-field check, is ignored and a fresh night starts. The Esc menu in the pasture (`menu.odin`, Bush Master's pattern): Carry on, Sound on/off (kept across nights and saves), Start over (a red "START OVER?" with No first; the bests stay). "Start over" also under the screen (a browser confirm). Release standard in place: `ITCH_DESCRIPTION.md` (a draft, not approved), `assets/cover.png` and four screenshots rendered from the game (`tools/make_cover.py`, `tools/make_shots.sh`), `assets/CREDITS.md`, `devlog/20261113/devlog.md` (a draft, not posted); the release audit is all OK. 64 native tests.
 
+## Playtest (November 13, 2026, by Claude at the user's request)
+
+A bot (`src/game/playtest_test.odin`, off unless `-define:PLAYTEST=true`) plays whole nights through `command`, one key press every 0.2 s, in three styles: careful (picks sheep and pens to make lines), lazy (nearest sheep, emptiest pen) and relaxed (careful until the first dog, then only shops). Plus a short live session in the browser.
+
+Found and fixed:
+- **End-of-night soft-lock (bug):** new sheep stopped wandering in once the sheep in yer arms and the pasture could cover the rest, so a player holding sheep near the end left the dogs nothing to fetch and the night never ended. Sheep now wander in until the millionth is counted.
+- **Too long, with dead stretches:** careful play took 3:00, lazy 3:35, and the last 30 to 50 minutes had nothing to buy. Count-by prices now grow x1.8 (were x3.0): careful 1:58, lazy 2:22, relaxed 2:28; the longest wait between purchases 12 to 16 minutes.
+- **A slow, walking-only start:** the first sheepdog came at 10 minutes (careful) or 18 (lazy). It now costs 60 Zzz (was 150): 3.5 and 7 minutes.
+- **Stages flew by:** late on, a new stage (new moon, notice, chime) came every 20 seconds, so planning around the moon was pointless. A lap of the board now takes 121 holes worth the multiplier each (121 points drowsy, 242 in cycle 1, and so on), so stages stay 2 to 3 minutes apart; about 45 stages a night.
+- **Sheep in the way:** wandering sheep blocked the path to the fence once yer arms were full. Walking into one with full arms now swaps places with it.
+
+Measured but left alone:
+- **Dozing hits careless play hardest:** a lazy player's first ten minutes doze off 206 of 293 sheep (16 lines); a careful player's 73 of 346 (47 lines). A trial where sheep doze only once the fold is half full helped careful play and not lazy play, and changed no finish time, so the user's rule stands. Longer doze times (75, 90 s) made the fold fill and cost more clears.
+- **Walking is about 90% of a hands-on player's key presses.** After the first dog a player can stop and let the dogs work and still finish about 25 minutes later than a careful player.
+- **Hands above 29 happen** (31 to 33 seen): the sheep are drawn from an endless deck, so a line can hold the same card more than once. Left as dream logic.
+
 Nice to have: a different sky and music per sleep stage, chain-clear celebrations, and a 19 Easter egg.
 
 ## Open (Claude's placeholders until the user says)
