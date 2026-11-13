@@ -123,12 +123,13 @@ count_sheep_in :: proc(g: ^Game) {
 	}
 }
 
-// A fresh night: upgrades and the fold start over; the bests stay.
+// A fresh night: upgrades and the fold start over; the bests and the sound setting stay.
 new_night :: proc(g: ^Game) {
-	bests := g.bests
+	bests, muted := g.bests, g.muted
 	seed := next_u64(g)
 	init_game(g, seed)
 	g.bests = bests
+	g.muted = muted
 	g.night = bests.nights
 }
 

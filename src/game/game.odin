@@ -202,6 +202,8 @@ Game :: struct {
 	dogs:         [DOGS_MAX]Dog,
 	dog_count:    i32,
 	dog_speed_level: i32,
+	menu:         Menu,
+	muted:        bool,
 	bests:        Bests, // kept from night to night
 }
 
@@ -248,6 +250,9 @@ is_face :: proc(c: Card) -> bool {
 }
 
 play :: proc(g: ^Game, s: Sound) {
+	if g.muted {
+		return
+	}
 	if g.sound_count < SOUNDS_MAX {
 		g.sounds[g.sound_count] = s
 		g.sound_count += 1
@@ -331,6 +336,10 @@ command :: proc(g: ^Game, c: Command) {
 		shop_command(g, c)
 		return
 	}
+	if g.menu.open {
+		menu_command(g, c)
+		return
+	}
 	switch c {
 	case .North:
 		if g.py == 0 {
@@ -349,6 +358,7 @@ command :: proc(g: ^Game, c: Command) {
 			send_sheep(g)
 		}
 	case .Cancel:
+		open_menu(g)
 	}
 }
 

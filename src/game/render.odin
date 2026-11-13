@@ -210,6 +210,9 @@ draw_game :: proc(f: ^Frame, g: ^Game) {
 	if g.shop.open {
 		draw_shop(f, g)
 	}
+	if g.menu.open {
+		draw_menu(f, g)
+	}
 	if g.finished {
 		draw_finish(f, g)
 	}
@@ -539,5 +542,56 @@ draw_finish :: proc(f: ^Frame, g: ^Game) {
 	row(f, 178, "Best hand", commas(buf[:], i64(b.hand)))
 	if g.finish_t >= FINISH_PAUSE && int(g.finish_t * 2) % 2 == 0 {
 		centre(f, "Space: a new night", 198, COLOR_YELLOW)
+	}
+}
+
+// The Esc menu, and the "start over?" question.
+draw_menu :: proc(f: ^Frame, g: ^Game) {
+	X :: 90
+	Y :: 70
+	W :: 140
+	H :: 62
+	m := g.menu
+	box :: proc(f: ^Frame, x, y, w, h: int, edge: u8) {
+		fill_rect(f, x, y, w, h, COLOR_BLACK)
+		fill_rect(f, x, y, w, 1, edge)
+		fill_rect(f, x, y + h - 1, w, 1, edge)
+		fill_rect(f, x, y, 1, h, edge)
+		fill_rect(f, x + w - 1, y, 1, h, edge)
+	}
+	if m.confirm {
+		box(f, X - 40, Y - 6, W + 80, H + 20, COLOR_RED)
+		print(f, "START OVER?", X - 32, Y, COLOR_RED)
+		print(f, "This night's sheep, points,", X - 32, Y + 14, COLOR_WHITE)
+		print(f, "Zzz and dogs are all lost.", X - 32, Y + 24, COLOR_WHITE)
+		print(f, "The bests of past nights stay.", X - 32, Y + 34, COLOR_LIGHT)
+		opts := [2]string{"No", "Yes, start over"}
+		for o, i in opts {
+			y := Y + 50 + i * 10
+			chosen := (i == 1) == m.yes
+			if chosen {
+				print_glyph(f, 16, X - 32, y, COLOR_YELLOW)
+			}
+			print(f, o, X - 22, y, COLOR_YELLOW if chosen else COLOR_MID)
+		}
+		return
+	}
+	box(f, X, Y, W, H, COLOR_YELLOW)
+	print(f, "ZZZ... MENU", X + 8, Y + 6, COLOR_YELLOW)
+	for row in Menu_Row {
+		y := Y + 20 + int(row) * 12
+		chosen := row == m.row
+		if chosen {
+			print_glyph(f, 16, X + 8, y, COLOR_YELLOW)
+		}
+		c: u8 = COLOR_WHITE if chosen else COLOR_LIGHT
+		switch row {
+		case .Carry_On:
+			print(f, "Carry on", X + 18, y, c)
+		case .Sound:
+			print(f, "Sound: off" if g.muted else "Sound: on", X + 18, y, c)
+		case .Start_Over:
+			print(f, "Start over", X + 18, y, c)
+		}
 	}
 }

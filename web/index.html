@@ -50,7 +50,7 @@
 <footer>
 	Counting Sheep of SPLORR!! by TheGrumpyGameDev, for Ultimate AI-Powered Game Jam #7. Made by an AI agent (Claude Code) at the author's direction: code, and art drawn in the Anvil.
 	Font: DINOBYTE by mby (CC BY 4.0). Feedback by LootLocker.
-	<a href="#" id="feedback-link">Send feedback (F)</a> · <a href="https://thegrumpygamedev.itch.io/">itch.io</a> · <a href="https://playdeezgames.github.io/oeuvre-of-splorr/">more games</a>
+	<a href="#" id="feedback-link">Send feedback (F)</a> · <a href="#" id="restart-link">Start over</a> · <a href="https://thegrumpygamedev.itch.io/">itch.io</a> · <a href="https://playdeezgames.github.io/oeuvre-of-splorr/">more games</a>
 </footer>
 <script src="odin.js"></script>
 <script src="lootlocker.js"></script>
@@ -71,7 +71,39 @@
 	const ex = memory.exports;
 	const W = ex.platform_screen_w(), H = ex.platform_screen_h();
 
-	// Saves come in a later slice.
+	// The night is saved in localStorage every few seconds and when the page is hidden; a save this
+	// build cannot read, or none, starts a fresh night. "Start over" begins a fresh night (bests stay).
+	const SAVE_KEY = "counting-sheep-save";
+	function store(fn) { try { return fn(); } catch (e) { return null; } }
+	const saved = store(() => localStorage.getItem(SAVE_KEY));
+	if (saved) {
+		store(() => {
+			const bin = atob(saved);
+			if (bin.length > ex.platform_save_cap()) return;
+			const buf = new Uint8Array(memory.memory.buffer, ex.platform_load_ptr(), bin.length);
+			for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+			ex.platform_load(bin.length);
+		});
+	}
+	function saveNow() {
+		store(() => {
+			const n = ex.platform_save();
+			if (n <= 0) return;
+			const bytes = new Uint8Array(memory.memory.buffer, ex.platform_save_ptr(), n);
+			let s = "";
+			for (let i = 0; i < n; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+			localStorage.setItem(SAVE_KEY, btoa(s));
+		});
+	}
+	setInterval(saveNow, 3000);
+	document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") saveNow(); });
+	window.addEventListener("pagehide", saveNow);
+	document.getElementById("restart-link").addEventListener("click", (e) => {
+		e.preventDefault();
+		if (!confirm("Start a fresh night? This night's sheep, points, Zzz and dogs are lost; yer bests stay.")) return;
+		ex.platform_restart();
+		saveNow();
+	});
 
 	// Sound effects: small synthesised blips, one entry per game.Sound (src/game/sound.odin), in that
 	// order. Each is a list of notes [start Hz, end Hz, ms, wave, volume] played one after another.
