@@ -75,6 +75,7 @@ Must have, in order:
 
 Progress:
 - November 13, 2026: **step 1 done**. The insomniac walks a 20 by 5 pasture. Walking into a sheep picks it up (armful 3). At the fence, under one of the fold's 7 columns, Space or walking north sends the first sheep held over the fence, counted as it jumps. It lands at the bottom of the column (so the Connect Four drop half of step 2 is in), and a full column refuses. Sheep wander, and new ones wander in up to 10 at a time. Suit colours: spades white, hearts orange, diamonds cyan, clubs lime. 12 native tests. Sprites: sheep, insomniac, fence, fold cell, grass, all drawn in the Anvil. No saves yet.
+- November 13, 2026: **step 2 done**. Four or more sheep of one suit in a row (across, down or either diagonal) make a line; a run of five or more is one line. Lines are checked when a sheep lands (a sheep still in the air does not count). Every line clears at once: the sheep fall asleep and float off with a "z", the sheep above drop down (a sheep in the air is re-aimed), and 0.4 s later the fold is checked again, so drops chain. The panel counts lines and the top chain. Not scored yet (step 3). Open for step 3: how a line of five or more scores as a cribbage hand, which needs exactly four sheep plus the moon. 24 native tests.
 
 Nice to have: a different sky and music per sleep stage, chain-clear celebrations, and a 19 Easter egg.
 

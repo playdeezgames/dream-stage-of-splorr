@@ -6,6 +6,10 @@ package game
 // one at a time over the fence into the 7-by-6 sheepfold above it (Connect Four style: a sheep drops
 // to the lowest empty spot of the column the insomniac stands under). Each jump counts one sheep
 // toward the million.
+//
+// Slice 2: four or more sheep of one suit in a row (across, down or diagonal) make a line. When a
+// sheep lands, every line clears at once: those sheep fall asleep and float off, the sheep above drop
+// down, and after a short pause the fold is checked again, so drops can chain.
 
 // Tuning. Claude's placeholders; the user's to change.
 TOTAL_SHEEP :: 1_000_000
@@ -16,6 +20,10 @@ WANDER_MIN :: 1.5 // seconds a sheep stands before it wanders a step
 WANDER_SPREAD :: 3.0 // plus up to this many more
 JUMP_TIME :: 0.55 // seconds a jump over the fence takes
 NOTICE_TIME :: 1.6
+CLEAR_PAUSE :: 0.4 // seconds between a clear and the chain check after the sheep above drop
+FALL_SPEED :: 240.0 // pixels a second a dropped sheep falls, for drawing
+SLEEP_TIME :: 1.2 // seconds a cleared sheep takes to float off
+LINE_LENGTH :: 4
 
 // Layout, in tiles of the pasture grid. The fold's first column stands over pasture column
 // FOLD_FIRST_COL, so walking along the fence chooses the column.
@@ -29,6 +37,7 @@ ARMFUL_MAX :: 12
 FLOCK_MAX :: 32
 JUMPS_MAX :: 16
 SOUNDS_MAX :: 16
+SLEEPERS_MAX :: FOLD_COLS * FOLD_ROWS
 
 Suit :: enum u8 {
 	Spades,
@@ -75,6 +84,7 @@ Sound :: enum u8 {
 	Jump,
 	Land,
 	Deny,
+	Clear,
 }
 
 Notice :: enum u8 {
@@ -83,6 +93,14 @@ Notice :: enum u8 {
 	Arms_Empty,
 	Not_Under_Fold,
 	Column_Full,
+	Line,
+}
+
+// A cleared sheep floating off asleep, for drawing.
+Sleeper :: struct {
+	card:     Card,
+	col, row: i32,
+	t:        f32,
 }
 
 Game :: struct {
@@ -98,6 +116,13 @@ Game :: struct {
 	counted:     i64,
 	jumps:       [JUMPS_MAX]Jump,
 	jump_count:  i32,
+	fall:        [FOLD_COLS][FOLD_ROWS]f32, // pixels above its spot a dropped sheep still is (drawing)
+	sleepers:    [SLEEPERS_MAX]Sleeper,
+	sleeper_count: i32,
+	recheck_t:   f32, // > 0 while a chain is settling
+	chain:       i32, // clears in the current chain
+	best_chain:  i32,
+	lines:       i64, // lines cleared
 	spawn_t:     f32,
 	notice:      Notice,
 	notice_t:    f32,
@@ -346,9 +371,35 @@ tick :: proc(g: ^Game, dt_in: f64) {
 			g.jump_count -= 1
 			g.jumps[i] = g.jumps[g.jump_count]
 			play(g, .Land)
+			resolve_lines(g)
 			continue
 		}
 		i += 1
+	}
+
+	for c in 0 ..< FOLD_COLS {
+		for r in 0 ..< FOLD_ROWS {
+			g.fall[c][r] = max(0, g.fall[c][r] - FALL_SPEED * dt)
+		}
+	}
+	if g.recheck_t > 0 {
+		g.recheck_t -= dt
+		if g.recheck_t <= 0 {
+			g.recheck_t = 0
+			if !resolve_lines(g) {
+				g.chain = 0
+			}
+		}
+	}
+	si := 0
+	for si < int(g.sleeper_count) {
+		g.sleepers[si].t += dt
+		if g.sleepers[si].t >= SLEEP_TIME {
+			g.sleeper_count -= 1
+			g.sleepers[si] = g.sleepers[g.sleeper_count]
+			continue
+		}
+		si += 1
 	}
 
 	if g.notice_t > 0 {
@@ -379,6 +430,110 @@ tick :: proc(g: ^Game, dt_in: f64) {
 			if d[0] != 0 {
 				s.flip = d[0] < 0
 			}
+		}
+	}
+}
+
+// A fold cell that counts toward lines: a landed sheep (one still in the air does not count yet).
+line_card :: proc(g: ^Game, col, row: i32) -> (Card, bool) {
+	if col < 0 || row < 0 || col >= FOLD_COLS || row >= FOLD_ROWS {
+		return {}, false
+	}
+	c := g.fold[col][row]
+	if c.rank == 0 || landing_pending(g, col, row) {
+		return {}, false
+	}
+	return c, true
+}
+
+// Marks every sheep in a run of LINE_LENGTH or more of one suit; returns how many runs there are.
+// A run longer than four is one line.
+find_lines :: proc(g: ^Game, marks: ^[FOLD_COLS][FOLD_ROWS]bool) -> int {
+	DIRS := [4][2]i32{{1, 0}, {0, 1}, {1, 1}, {1, -1}}
+	lines := 0
+	for d in DIRS {
+		for col in 0 ..< i32(FOLD_COLS) {
+			for row in 0 ..< i32(FOLD_ROWS) {
+				c, ok := line_card(g, col, row)
+				if !ok {
+					continue
+				}
+				// Only start at the first sheep of a run.
+				if p, pok := line_card(g, col - d[0], row - d[1]); pok && p.suit == c.suit {
+					continue
+				}
+				n: i32 = 1
+				for {
+					q, qok := line_card(g, col + n * d[0], row + n * d[1])
+					if !qok || q.suit != c.suit {
+						break
+					}
+					n += 1
+				}
+				if n >= LINE_LENGTH {
+					lines += 1
+					for k in 0 ..< n {
+						marks[col + k * d[0]][row + k * d[1]] = true
+					}
+				}
+			}
+		}
+	}
+	return lines
+}
+
+// Clears every line in the fold, lets the sheep above drop, and starts the chain check. False when
+// there was nothing to clear.
+resolve_lines :: proc(g: ^Game) -> bool {
+	marks: [FOLD_COLS][FOLD_ROWS]bool
+	n := find_lines(g, &marks)
+	if n == 0 {
+		return false
+	}
+	for col in 0 ..< i32(FOLD_COLS) {
+		for row in 0 ..< i32(FOLD_ROWS) {
+			if !marks[col][row] {
+				continue
+			}
+			if g.sleeper_count < SLEEPERS_MAX {
+				g.sleepers[g.sleeper_count] = {card = g.fold[col][row], col = col, row = row}
+				g.sleeper_count += 1
+			}
+			g.fold[col][row] = {}
+			g.fall[col][row] = 0
+		}
+	}
+	collapse(g)
+	g.lines += i64(n)
+	g.chain += 1
+	g.best_chain = max(g.best_chain, g.chain)
+	g.recheck_t = CLEAR_PAUSE
+	show_notice(g, .Line)
+	play(g, .Clear)
+	return true
+}
+
+// Drops every sheep to the lowest empty spot of its column. Sheep still in the air keep their place
+// in the column, and their jump is re-aimed.
+collapse :: proc(g: ^Game) {
+	for col in 0 ..< i32(FOLD_COLS) {
+		w: i32 = 0
+		for r in 0 ..< i32(FOLD_ROWS) {
+			if g.fold[col][r].rank == 0 {
+				continue
+			}
+			if r != w {
+				g.fold[col][w] = g.fold[col][r]
+				g.fold[col][r] = {}
+				g.fall[col][w] = g.fall[col][r] + f32(r - w) * TILE
+				g.fall[col][r] = 0
+				for j in 0 ..< int(g.jump_count) {
+					if g.jumps[j].col == col && g.jumps[j].row == r {
+						g.jumps[j].row = w
+					}
+				}
+			}
+			w += 1
 		}
 	}
 }

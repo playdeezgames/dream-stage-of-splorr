@@ -60,6 +60,16 @@ draw_sheep :: proc(f: ^Frame, c: Card, x, y: int, flip: bool) {
 	print_glyph(f, RANKS[c.rank - 1], x + (7 if flip else 3), y + 3, COLOR_BLACK)
 }
 
+// A sheep fallen asleep: drawn like the others, its eye shut (a closed eye is the face colour).
+draw_sleeping_sheep :: proc(f: ^Frame, c: Card, x, y: int) {
+	r := IDENTITY
+	r[12] = suit_color(c.suit)
+	r[13] = COLOR_BLACK if is_face(c) else COLOR_LIGHT
+	r[1] = r[13]
+	draw_gfx(f, .Sheep, x, y, false, r)
+	print_glyph(f, RANKS[c.rank - 1], x + 3, y + 3, COLOR_BLACK)
+}
+
 fold_cell_xy :: proc(col, row: i32) -> (int, int) {
 	return FOLD_X + int(col) * TILE, FOLD_Y + (FOLD_ROWS - 1 - int(row)) * TILE
 }
@@ -84,8 +94,23 @@ draw_game :: proc(f: ^Frame, g: ^Game) {
 			draw_gfx(f, .Fold, x, y)
 			c := g.fold[col][row]
 			if c.rank != 0 && !landing_pending(g, col, row) {
-				draw_sheep(f, c, x, y, false)
+				draw_sheep(f, c, x, y - int(g.fall[col][row]), false)
 			}
+		}
+	}
+
+	// Cleared sheep, asleep, floating up off the fold with their Zs.
+	for i in 0 ..< int(g.sleeper_count) {
+		s := g.sleepers[i]
+		x, y := fold_cell_xy(s.col, s.row)
+		p := s.t / SLEEP_TIME
+		rise := int(p * 28)
+		if p > 0.7 && int(s.t * 20) % 2 == 0 {
+			continue // flickers out
+		}
+		draw_sleeping_sheep(f, s.card, x, y - rise)
+		if p > 0.2 {
+			print_glyph(f, 'z', x + 9, y - 4 - rise - int(p * 8), COLOR_WHITE)
 		}
 	}
 
@@ -151,6 +176,10 @@ draw_panel :: proc(f: ^Frame, g: ^Game) {
 	w := print(f, commas(buf[:], i64(g.held_count)), x, 68, COLOR_WHITE)
 	w += print(f, "/", x + w, 68, COLOR_MID)
 	print(f, commas(buf[:], i64(g.armful)), x + w, 68, COLOR_WHITE)
+	print(f, "LINES", x, 84, COLOR_LIGHT)
+	print(f, commas(buf[:], g.lines), x, 94, COLOR_WHITE)
+	print(f, "TOP CHAIN", x, 110, COLOR_LIGHT)
+	print(f, commas(buf[:], i64(g.best_chain)), x, 120, COLOR_WHITE)
 }
 
 draw_strip :: proc(f: ^Frame, g: ^Game) {
@@ -187,6 +216,17 @@ draw_notice :: proc(f: ^Frame, g: ^Game) {
 		lines = {"Stand under a pen", "to send a sheep.", ""}
 	case .Column_Full:
 		lines = {"That pen is full.", "", ""}
+	case .Line:
+		lines = {"Four in a row!", "Sweet dreams.", ""}
+		if g.chain >= 2 {
+			buf: [16]u8
+			lines[1] = "Chain x"
+			lines[2] = commas(buf[:], i64(g.chain))
+			print(f, lines[0], x, 40, COLOR_YELLOW)
+			w := print(f, lines[1], x, 50, COLOR_YELLOW)
+			print(f, lines[2], x + w, 50, COLOR_YELLOW)
+			return
+		}
 	}
 	if g.notice != .None {
 		color = COLOR_YELLOW
