@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repository is
 
-The SPLORR!! entry for **Ultimate AI-Powered Game Jam #7** (https://itch.io/jam/ultimate-ai-powered-game-jam-7), joined November 13, 2026. The repo (public, `playdeezgames/dream-stage-of-splorr`) was created by the user that day with only a README. There is no code or concept yet. Do not pick one alone: pitch a few ideas and let the user choose.
+The SPLORR!! entry for **Ultimate AI-Powered Game Jam #7** (https://itch.io/jam/ultimate-ai-powered-game-jam-7), joined November 13, 2026. The repo (public, `playdeezgames/dream-stage-of-splorr`) was created by the user that day. The game is **Counting Sheep of SPLORR!!**, chosen by the user on November 13, 2026: an incremental where card sheep jump a fence (scored as cribbage pegging) into a Connect Four sheepfold, and four in a row of one suit scores as a cribbage hand, all to count a million sheep. **`DESIGN.md` is the design and records the user's decisions; read it first and keep it current.** Numbers in it are Claude's placeholders; decisions marked as the user's are not.
 
-The vault at `/home/yermom/git/bok-of-splorr/splorr/` is the shared body of knowledge for all SPLORR!! games and holds the standing rules. Read its `Home.md` first. The jam's details are in `Jams/Ultimate AI-Powered Game Jam 7.md`. Once there is a concept, create `Games/<title>.md` there with full frontmatter, link it from `Home.md`, and keep both up to date when facts change. `Gotchas.md` there has the wasm and Odin lessons.
+The vault at `/home/yermom/git/bok-of-splorr/splorr/` is the shared body of knowledge for all SPLORR!! games and holds the standing rules. Read its `Home.md` first. The jam's details are in `Jams/Ultimate AI-Powered Game Jam 7.md`; this game's note is `Games/Counting Sheep of SPLORR!!.md`. When a fact changes, update that note and its `Home.md` row too. `Gotchas.md` there has the wasm and Odin lessons.
 
 ## The jam's constraints (they shape every decision)
 
