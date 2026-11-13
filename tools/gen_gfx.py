@@ -13,7 +13,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 world = json.load(open(os.path.join(ROOT, 'art/counting-sheep.json')))
 
 # Order is the Gfx enum order in src/game/screen.odin; names are images in the "sheep" tileset.
-NAMES = ['sheep', 'insomniac', 'fence', 'fold', 'grass']
+NAMES = ['sheep', 'insomniac', 'fence', 'fold', 'grass', 'moon']
 
 ts = next(t['tileset'] for t in world['tilesets'] if t['name'] == 'sheep')
 W, H = ts['width'], ts['height']

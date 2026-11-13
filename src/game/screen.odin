@@ -45,6 +45,7 @@ Gfx :: enum {
 	Fence,
 	Fold,
 	Grass,
+	Moon,
 }
 
 // A colour swap for one draw: identity unless changed.
@@ -80,8 +81,8 @@ fill_rect :: proc(f: ^Frame, x, y, w, h: int, c: u8) {
 	}
 }
 
-// Draws a picture; colour 0 is transparent. `flip` mirrors it left to right.
-draw_gfx :: proc(f: ^Frame, g: Gfx, x, y: int, flip := false, remap := IDENTITY) {
+// Draws a picture; colour 0 is transparent. `flip` mirrors it left to right; `scale` is whole pixels.
+draw_gfx :: proc(f: ^Frame, g: Gfx, x, y: int, flip := false, remap := IDENTITY, scale := 1) {
 	pic := &GFX[g]
 	for i in 0 ..< TILE * TILE {
 		c := pic[i]
@@ -92,7 +93,11 @@ draw_gfx :: proc(f: ^Frame, g: Gfx, x, y: int, flip := false, remap := IDENTITY)
 		if flip {
 			col = TILE - 1 - col
 		}
-		set_px(f, x + col, y + i / TILE, remap[c])
+		if scale == 1 {
+			set_px(f, x + col, y + i / TILE, remap[c])
+		} else {
+			fill_rect(f, x + col * scale, y + (i / TILE) * scale, scale, scale, remap[c])
+		}
 	}
 }
 

@@ -10,6 +10,9 @@ package game
 // Slice 2: four or more sheep of one suit in a row (across, down or diagonal) make a line. When a
 // sheep lands, every line clears at once: those sheep fall asleep and float off, the sheep above drop
 // down, and after a short pause the fold is checked again, so drops can chain.
+//
+// Slice 3: cribbage scoring (scoring.odin). Each jump is pegged; each line scores as a hand with the
+// moon's card as the cut.
 
 // Tuning. Claude's placeholders; the user's to change.
 TOTAL_SHEEP :: 1_000_000
@@ -38,6 +41,10 @@ FLOCK_MAX :: 32
 JUMPS_MAX :: 16
 SOUNDS_MAX :: 16
 SLEEPERS_MAX :: FOLD_COLS * FOLD_ROWS
+LINES_MAX :: 24
+POPS_MAX :: 24
+POP_TIME :: 1.4
+CALL_TIME :: 2.5
 
 Suit :: enum u8 {
 	Spades,
@@ -85,6 +92,26 @@ Sound :: enum u8 {
 	Land,
 	Deny,
 	Clear,
+	Score,
+}
+
+// One line found in the fold: a run of one suit from (col, row) in direction (dx, dy).
+Line :: struct {
+	col, row: i32,
+	dx, dy:   i32,
+	n:        i32,
+}
+
+Line_List :: struct {
+	lines: [LINES_MAX]Line,
+	n:     int,
+}
+
+// Points floating up over the fold, for drawing. col and row may be fractional (a line's middle).
+Pop :: struct {
+	value:    i32,
+	col, row: f32,
+	t:        f32,
 }
 
 Notice :: enum u8 {
@@ -123,6 +150,14 @@ Game :: struct {
 	chain:       i32, // clears in the current chain
 	best_chain:  i32,
 	lines:       i64, // lines cleared
+	moon:        Card, // the cut card for every hand
+	points:      i64,
+	pegging:     Pegging,
+	last_peg:    Peg_Result, // what the last jump scored, for the call by the fence
+	peg_t:       f32,
+	last_line:   Line_Score, // the best line of the last clear, for the notice
+	pops:        [POPS_MAX]Pop,
+	pop_count:   i32,
 	spawn_t:     f32,
 	notice:      Notice,
 	notice_t:    f32,
@@ -136,6 +171,7 @@ init_game :: proc(g: ^Game, seed: u64) {
 	g.rng = seed
 	g.px, g.py = PASTURE_COLS / 2, 2
 	g.armful = ARMFUL_START
+	g.moon = random_card(g)
 	for _ in 0 ..< FLOCK_TARGET {
 		spawn_sheep(g)
 	}
@@ -335,6 +371,13 @@ send_sheep :: proc(g: ^Game) -> bool {
 	g.held[g.held_count] = {}
 	g.fold[col][row] = card
 	g.counted += 1
+	r := peg(&g.pegging, card)
+	g.last_peg = r
+	g.peg_t = CALL_TIME
+	if r.points > 0 {
+		g.points += i64(r.points)
+		play(g, .Score)
+	}
 	if g.jump_count < JUMPS_MAX {
 		g.jumps[g.jump_count] = {
 			card     = card,
@@ -402,6 +445,20 @@ tick :: proc(g: ^Game, dt_in: f64) {
 		si += 1
 	}
 
+	if g.peg_t > 0 {
+		g.peg_t = max(0, g.peg_t - dt)
+	}
+	pi := 0
+	for pi < int(g.pop_count) {
+		g.pops[pi].t += dt
+		if g.pops[pi].t >= POP_TIME {
+			g.pop_count -= 1
+			g.pops[pi] = g.pops[g.pop_count]
+			continue
+		}
+		pi += 1
+	}
+
 	if g.notice_t > 0 {
 		g.notice_t -= dt
 		if g.notice_t <= 0 {
@@ -448,7 +505,7 @@ line_card :: proc(g: ^Game, col, row: i32) -> (Card, bool) {
 
 // Marks every sheep in a run of LINE_LENGTH or more of one suit; returns how many runs there are.
 // A run longer than four is one line.
-find_lines :: proc(g: ^Game, marks: ^[FOLD_COLS][FOLD_ROWS]bool) -> int {
+find_lines :: proc(g: ^Game, marks: ^[FOLD_COLS][FOLD_ROWS]bool, found: ^Line_List = nil) -> int {
 	DIRS := [4][2]i32{{1, 0}, {0, 1}, {1, 1}, {1, -1}}
 	lines := 0
 	for d in DIRS {
@@ -472,6 +529,10 @@ find_lines :: proc(g: ^Game, marks: ^[FOLD_COLS][FOLD_ROWS]bool) -> int {
 				}
 				if n >= LINE_LENGTH {
 					lines += 1
+					if found != nil && found.n < LINES_MAX {
+						found.lines[found.n] = {col = col, row = row, dx = d[0], dy = d[1], n = n}
+						found.n += 1
+					}
 					for k in 0 ..< n {
 						marks[col + k * d[0]][row + k * d[1]] = true
 					}
@@ -486,9 +547,34 @@ find_lines :: proc(g: ^Game, marks: ^[FOLD_COLS][FOLD_ROWS]bool) -> int {
 // there was nothing to clear.
 resolve_lines :: proc(g: ^Game) -> bool {
 	marks: [FOLD_COLS][FOLD_ROWS]bool
-	n := find_lines(g, &marks)
+	found: Line_List
+	n := find_lines(g, &marks, &found)
 	if n == 0 {
 		return false
+	}
+	// Each line scores as a hand with the moon, before its sheep leave the fold.
+	best_total: i32 = -1
+	for li in 0 ..< found.n {
+		l := found.lines[li]
+		cards: [FOLD_COLS]Card
+		for k in 0 ..< l.n {
+			cards[k] = g.fold[l.col + k * l.dx][l.row + k * l.dy]
+		}
+		ls := score_line(cards[:l.n], g.moon)
+		g.points += i64(ls.total)
+		if ls.total > best_total {
+			best_total = ls.total
+			g.last_line = ls
+		}
+		if g.pop_count < POPS_MAX {
+			mid := f32(l.n - 1) / 2
+			g.pops[g.pop_count] = {
+				value = ls.total,
+				col   = f32(l.col) + mid * f32(l.dx),
+				row   = f32(l.row) + mid * f32(l.dy),
+			}
+			g.pop_count += 1
+		}
 	}
 	for col in 0 ..< i32(FOLD_COLS) {
 		for row in 0 ..< i32(FOLD_ROWS) {

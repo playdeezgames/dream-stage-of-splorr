@@ -37,6 +37,10 @@ dump_play :: proc(t: ^testing.T) {
 		g.held[1] = {rank = 11, suit = .Hearts}
 		g.held_count = 2
 		g.counted = 1234
+		g.pegging.count = 15
+		g.last_peg = {calls = {.Fifteen, .Pair}, points = 4}
+		g.peg_t = 2
+		g.points = 87
 		f := new(Frame)
 		defer free(f)
 		draw_game(f, &g)

@@ -39,7 +39,7 @@ Kept close to real cribbage pegging so cribbage players recognise it:
 
 ### Hands (each line cleared)
 
-A line plus the moon is scored as a five-card cribbage hand: fifteens (2 each), pairs (2 each), runs (1 per card), flush (4, or 5 when the moon matches the suit; a line is always a flush) and **his nobs** (1 for the Jack of the moon's suit). The impossible score of 19 is a joke for cribbage players; a nod to it is welcome, but it isn't the goal.
+A line plus the moon is scored as a five-card cribbage hand (a line of five or more: its best four, plus a point for each extra sheep): fifteens (2 each), pairs (2 each), runs (1 per card), flush (4, or 5 when the moon matches the suit; a line is always a flush) and **his nobs** (1 for the Jack of the moon's suit). The impossible score of 19 is a joke for cribbage players; a nod to it is welcome, but it isn't the goal.
 
 ## Points, Zzz and sleep stages (STAGE)
 
@@ -76,6 +76,7 @@ Must have, in order:
 Progress:
 - November 13, 2026: **step 1 done**. The insomniac walks a 20 by 5 pasture. Walking into a sheep picks it up (armful 3). At the fence, under one of the fold's 7 columns, Space or walking north sends the first sheep held over the fence, counted as it jumps. It lands at the bottom of the column (so the Connect Four drop half of step 2 is in), and a full column refuses. Sheep wander, and new ones wander in up to 10 at a time. Suit colours: spades white, hearts orange, diamonds cyan, clubs lime. 12 native tests. Sprites: sheep, insomniac, fence, fold cell, grass, all drawn in the Anvil. No saves yet.
 - November 13, 2026: **step 2 done**. Four or more sheep of one suit in a row (across, down or either diagonal) make a line; a run of five or more is one line. Lines are checked when a sheep lands (a sheep still in the air does not count). Every line clears at once: the sheep fall asleep and float off with a "z", the sheep above drop down (a sheep in the air is re-aimed), and 0.4 s later the fold is checked again, so drops chain. The panel counts lines and the top chain. Not scored yet (step 3). Open for step 3: how a line of five or more scores as a cribbage hand, which needs exactly four sheep plus the moon. 24 native tests.
+- November 13, 2026: **step 3 done**. Every jump is pegged (`scoring.odin`): the running count shows by the fence with the calls (fifteen 2, thirty-one 2 and a fresh count, a go for 1 that starts the count with the sheep that went over, pairs 2/6/12, runs of 3 or more in any order). Every line scores as a cribbage hand with the moon as the cut (fifteens, pairs, runs with doubles, flush 4 or 5, his nobs). **A line of five or more scores its best four plus a point for each extra sheep (the user's choice, November 13, 2026).** Each line's points float up off the fold and the notice says "Hand for N". The moon (a new Anvil sprite drawn at 2x, showing its card) is random for now; it changes each sleep stage in step 4. Points total on the panel. 33 native tests, including the 29 hand.
 
 Nice to have: a different sky and music per sleep stage, chain-clear celebrations, and a 19 Easter egg.
 

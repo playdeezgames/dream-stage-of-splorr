@@ -11,6 +11,10 @@ FOLD_Y :: FENCE_Y - FOLD_ROWS * TILE
 PANEL_X :: PASTURE_COLS * TILE
 STRIP_Y :: PASTURE_Y + PASTURE_ROWS * TILE
 
+MOON_X :: 30
+MOON_Y :: 36
+CALL_X :: FOLD_X + FOLD_COLS * TILE + 6
+
 COLOR_SKY_BG :: COLOR_BLACK
 COLOR_GRASS_BG :: COLOR_TEAL
 COLOR_PANEL :: COLOR_DARK
@@ -87,6 +91,12 @@ draw_game :: proc(f: ^Frame, g: ^Game) {
 	print(f, "COUNTING SHEEP", 6, 6, COLOR_WHITE)
 	print(f, "of SPLORR!!", 6, 16, COLOR_LIGHT)
 
+	// The moon is the cut card for every hand.
+	draw_gfx(f, .Moon, MOON_X, MOON_Y, scale = 2)
+	print_glyph(f, RANKS[g.moon.rank - 1], MOON_X + 10, MOON_Y + 12, COLOR_BLACK)
+	print_glyph(f, suit_glyph(g.moon.suit), MOON_X + 16, MOON_Y + 12, COLOR_BLACK)
+	print(f, "the cut", MOON_X - 4, MOON_Y + 34, COLOR_MID)
+
 	// The fold.
 	for col in 0 ..< i32(FOLD_COLS) {
 		for row in 0 ..< i32(FOLD_ROWS) {
@@ -148,6 +158,23 @@ draw_game :: proc(f: ^Frame, g: ^Game) {
 	}
 	draw_gfx(f, .Insomniac, int(g.px) * TILE, PASTURE_Y + int(g.py) * TILE, g.flip)
 
+	// Points from hands, floating up off the fold.
+	for i in 0 ..< int(g.pop_count) {
+		pp := g.pops[i]
+		p := pp.t / POP_TIME
+		if p > 0.75 && int(pp.t * 20) % 2 == 0 {
+			continue
+		}
+		buf: [16]u8
+		text := commas(buf[1:], i64(pp.value))
+		buf[0] = '+'
+		text = string(buf[:len(text) + 1])
+		x := FOLD_X + int(pp.col * TILE) + TILE / 2 - text_width(text) / 2
+		y := FOLD_Y + int((FOLD_ROWS - 1 - pp.row) * TILE) + 4 - int(p * 24)
+		fill_rect(f, x - 1, y - 1, text_width(text) + 2, GLYPH_H + 2, COLOR_BLACK)
+		print(f, text, x, y, COLOR_YELLOW)
+	}
+
 	// Sheep in the air, over everything.
 	for i in 0 ..< int(g.jump_count) {
 		j := g.jumps[i]
@@ -180,6 +207,8 @@ draw_panel :: proc(f: ^Frame, g: ^Game) {
 	print(f, commas(buf[:], g.lines), x, 94, COLOR_WHITE)
 	print(f, "TOP CHAIN", x, 110, COLOR_LIGHT)
 	print(f, commas(buf[:], i64(g.best_chain)), x, 120, COLOR_WHITE)
+	print(f, "POINTS", x, 136, COLOR_LIGHT)
+	print(f, commas(buf[:], g.points), x, 146, COLOR_WHITE)
 }
 
 draw_strip :: proc(f: ^Frame, g: ^Game) {
@@ -201,7 +230,8 @@ draw_strip :: proc(f: ^Frame, g: ^Game) {
 }
 
 draw_notice :: proc(f: ^Frame, g: ^Game) {
-	x := FOLD_X + FOLD_COLS * TILE + 6
+	draw_calls(f, g)
+	x := CALL_X
 	lines: [3]string
 	color: u8 = COLOR_LIGHT
 	switch g.notice {
@@ -217,21 +247,63 @@ draw_notice :: proc(f: ^Frame, g: ^Game) {
 	case .Column_Full:
 		lines = {"That pen is full.", "", ""}
 	case .Line:
-		lines = {"Four in a row!", "Sweet dreams.", ""}
+		buf: [16]u8
+		print(f, "Four in a row!", x, NOTICE_Y, COLOR_YELLOW)
+		w := print(f, "Hand for ", x, NOTICE_Y + 10, COLOR_YELLOW)
+		print(f, commas(buf[:], i64(g.last_line.total)), x + w, NOTICE_Y + 10, COLOR_WHITE)
 		if g.chain >= 2 {
-			buf: [16]u8
-			lines[1] = "Chain x"
-			lines[2] = commas(buf[:], i64(g.chain))
-			print(f, lines[0], x, 40, COLOR_YELLOW)
-			w := print(f, lines[1], x, 50, COLOR_YELLOW)
-			print(f, lines[2], x + w, 50, COLOR_YELLOW)
-			return
+			w = print(f, "Chain x", x, NOTICE_Y + 20, COLOR_YELLOW)
+			print(f, commas(buf[:], i64(g.chain)), x + w, NOTICE_Y + 20, COLOR_WHITE)
 		}
+		return
 	}
 	if g.notice != .None {
 		color = COLOR_YELLOW
 	}
 	for l, i in lines {
-		print(f, l, x, 40 + i * 10, color)
+		print(f, l, x, NOTICE_Y + i * 10, color)
+	}
+}
+
+NOTICE_Y :: 26
+COUNT_Y :: 62
+
+// The running count, and what the last jump scored.
+draw_calls :: proc(f: ^Frame, g: ^Game) {
+	buf: [16]u8
+	x := CALL_X
+	w := print(f, "COUNT ", x, COUNT_Y, COLOR_LIGHT)
+	print(f, commas(buf[:], i64(g.pegging.count)), x + w, COUNT_Y, COLOR_WHITE)
+	if g.peg_t <= 0 || g.last_peg.points == 0 {
+		return
+	}
+	y := COUNT_Y + 10
+	r := g.last_peg
+	call :: proc(f: ^Frame, x: int, y: ^int, name: string, points: i32) {
+		buf: [16]u8
+		w := print(f, name, x, y^, COLOR_YELLOW)
+		print(f, commas(buf[:], i64(points)), x + w, y^, COLOR_WHITE)
+		y^ += 10
+	}
+	if .Go in r.calls {
+		call(f, x, &y, "Go for ", 1)
+	}
+	if .Fifteen in r.calls {
+		call(f, x, &y, "Fifteen ", 2)
+	}
+	if .Pair in r.calls {
+		call(f, x, &y, "Pair ", 2)
+	}
+	if .Pair_Royal in r.calls {
+		call(f, x, &y, "Pair royal ", 6)
+	}
+	if .Double_Pair_Royal in r.calls {
+		call(f, x, &y, "Double royal ", 12)
+	}
+	if .Run in r.calls {
+		call(f, x, &y, "Run for ", r.run)
+	}
+	if .Thirty_One in r.calls {
+		call(f, x, &y, "Thirty-one ", 2)
 	}
 }
