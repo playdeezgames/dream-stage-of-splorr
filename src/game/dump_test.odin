@@ -8,6 +8,8 @@ _ :: os
 
 DUMP_PLAY :: #config(DUMP_PLAY, "")
 DUMP_CLEAR :: #config(DUMP_CLEAR, "")
+DUMP_SHOP :: #config(DUMP_SHOP, "")
+DUMP_END :: #config(DUMP_END, "")
 
 write_ppm :: proc(path: string, f: ^Frame) -> bool {
 	out := make([dynamic]u8)
@@ -40,7 +42,10 @@ dump_play :: proc(t: ^testing.T) {
 		g.pegging.count = 15
 		g.last_peg = {calls = {.Fifteen, .Pair}, points = 4}
 		g.peg_t = 2
-		g.points = 87
+		g.points = 87 + 3 * BOARD_HOLES
+		g.lap = 3
+		g.zzz = 412
+		g.count_level = 2
 		f := new(Frame)
 		defer free(f)
 		draw_game(f, &g)
@@ -70,5 +75,53 @@ dump_clear :: proc(t: ^testing.T) {
 		defer free(f)
 		draw_game(f, &g)
 		testing.expect(t, write_ppm(DUMP_CLEAR, f))
+	}
+}
+
+// The nightstand's menu, on the clear row with a full fold: -define:DUMP_SHOP=<path.ppm>
+@(test)
+dump_shop :: proc(t: ^testing.T) {
+	when DUMP_SHOP != "" {
+		g: Game
+		init_game(&g, 13)
+		g.px, g.py = NIGHTSTAND_X - 1, NIGHTSTAND_Y
+		g.zzz = 140
+		g.armful_level, g.armful = 2, ARMFUL_START + 2
+		g.lap = 2
+		g.points = 2 * BOARD_HOLES + 40
+		for col in 0 ..< FOLD_COLS {
+			for row in 0 ..< FOLD_ROWS {
+				g.fold[col][row] = {rank = u8(1 + (col * 3 + row * 5) % 13), suit = Suit((col + row * 3) % 4)}
+			}
+		}
+		g.zzz = 20
+		open_shop(&g)
+		g.shop.row = .Clear
+		g.shop.col = 3
+		f := new(Frame)
+		defer free(f)
+		draw_game(f, &g)
+		testing.expect(t, write_ppm(DUMP_SHOP, f))
+	}
+}
+
+// The end of a night: -define:DUMP_END=<path.ppm>
+@(test)
+dump_end :: proc(t: ^testing.T) {
+	when DUMP_END != "" {
+		g: Game
+		init_game(&g, 14)
+		g.points = 9876
+		g.best_hand = 24
+		g.best_chain = 3
+		g.lap = 61
+		g.time = 2 * 3600 + 7 * 60 + 33
+		g.counted = TOTAL_SHEEP - 1
+		count_sheep_in(&g)
+		g.finish_t = 2
+		f := new(Frame)
+		defer free(f)
+		draw_game(f, &g)
+		testing.expect(t, write_ppm(DUMP_END, f))
 	}
 }

@@ -13,6 +13,9 @@ package game
 //
 // Slice 3: cribbage scoring (scoring.odin). Each jump is pegged; each line scores as a hand with the
 // moon's card as the cut.
+//
+// Slice 4 (economy.odin): points peg a 121-hole board, each lap a deeper sleep stage with a new moon
+// and a bigger Zzz multiplier; Zzz buys upgrades at the nightstand; the millionth sheep ends the night.
 
 // Tuning. Claude's placeholders; the user's to change.
 TOTAL_SHEEP :: 1_000_000
@@ -93,6 +96,11 @@ Sound :: enum u8 {
 	Deny,
 	Clear,
 	Score,
+	Stage,
+	Buy,
+	Open,
+	Close,
+	Asleep,
 }
 
 // One line found in the fold: a run of one suit from (col, row) in direction (dx, dy).
@@ -121,6 +129,10 @@ Notice :: enum u8 {
 	Not_Under_Fold,
 	Column_Full,
 	Line,
+	Stage,
+	Clear_Wait,
+	Clear_Empty,
+	Took_All,
 }
 
 // A cleared sheep floating off asleep, for drawing.
@@ -164,6 +176,21 @@ Game :: struct {
 	sounds:      [SOUNDS_MAX]Sound,
 	sound_count: i32,
 	time:        f64,
+	// Economy (economy.odin).
+	zzz:          i64,
+	lap:          i32, // laps of the pegboard done: the sleep stage
+	flock_target: i32,
+	armful_level: i32,
+	grass_level:  i32,
+	count_level:  i32, // index into COUNT_BY
+	clears:       i32,
+	best_hand:    i32,
+	shop:         Shop,
+	finished:     bool, // the millionth sheep is counted
+	finish_t:     f32,
+	finish_time:  f64,
+	night:        i32, // nights finished before this one
+	bests:        Bests, // kept from night to night
 }
 
 init_game :: proc(g: ^Game, seed: u64) {
@@ -171,6 +198,7 @@ init_game :: proc(g: ^Game, seed: u64) {
 	g.rng = seed
 	g.px, g.py = PASTURE_COLS / 2, 2
 	g.armful = ARMFUL_START
+	g.flock_target = FLOCK_TARGET
 	g.moon = random_card(g)
 	for _ in 0 ..< FLOCK_TARGET {
 		spawn_sheep(g)
@@ -232,13 +260,17 @@ sheep_at :: proc(g: ^Game, x, y: i32) -> int {
 	return -1
 }
 
-tile_free :: proc(g: ^Game, x, y: i32) -> bool {
-	return in_pasture(x, y) && sheep_at(g, x, y) < 0 && !(x == g.px && y == g.py)
+is_nightstand :: proc(x, y: i32) -> bool {
+	return x == NIGHTSTAND_X && y == NIGHTSTAND_Y
 }
 
-// Sheep not yet seen: neither counted, carried nor wandering the pasture.
+tile_free :: proc(g: ^Game, x, y: i32) -> bool {
+	return in_pasture(x, y) && sheep_at(g, x, y) < 0 && !(x == g.px && y == g.py) && !is_nightstand(x, y)
+}
+
+// Sheep not yet seen: the count still to go, less what the carried and wandering sheep will count.
 sheep_unseen :: proc(g: ^Game) -> i64 {
-	return TOTAL_SHEEP - g.counted - i64(g.held_count) - i64(g.flock_count)
+	return TOTAL_SHEEP - g.counted - i64(g.held_count + g.flock_count) * count_by(g)
 }
 
 sheep_to_count :: proc(g: ^Game) -> i64 {
@@ -247,7 +279,7 @@ sheep_to_count :: proc(g: ^Game) -> i64 {
 
 // A new sheep wanders onto a free tile, if the pasture has room and any sheep are left.
 spawn_sheep :: proc(g: ^Game) -> bool {
-	if g.flock_count >= FLOCK_TARGET || g.flock_count >= FLOCK_MAX || sheep_unseen(g) <= 0 {
+	if g.flock_count >= g.flock_target || g.flock_count >= FLOCK_MAX || sheep_unseen(g) <= 0 {
 		return false
 	}
 	for _ in 0 ..< 40 {
@@ -275,6 +307,16 @@ remove_sheep :: proc(g: ^Game, i: int) {
 }
 
 command :: proc(g: ^Game, c: Command) {
+	if g.finished {
+		if c == .Ok && g.finish_t >= FINISH_PAUSE {
+			new_night(g)
+		}
+		return
+	}
+	if g.shop.open {
+		shop_command(g, c)
+		return
+	}
 	switch c {
 	case .North:
 		if g.py == 0 {
@@ -304,6 +346,10 @@ step :: proc(g: ^Game, dx, dy: i32) {
 	}
 	nx, ny := g.px + dx, g.py + dy
 	if !in_pasture(nx, ny) {
+		return
+	}
+	if is_nightstand(nx, ny) {
+		open_shop(g)
 		return
 	}
 	if i := sheep_at(g, nx, ny); i >= 0 {
@@ -370,12 +416,12 @@ send_sheep :: proc(g: ^Game) -> bool {
 	g.held_count -= 1
 	g.held[g.held_count] = {}
 	g.fold[col][row] = card
-	g.counted += 1
+	count_sheep_in(g)
 	r := peg(&g.pegging, card)
 	g.last_peg = r
 	g.peg_t = CALL_TIME
 	if r.points > 0 {
-		g.points += i64(r.points)
+		add_points(g, r.points)
 		play(g, .Score)
 	}
 	if g.jump_count < JUMPS_MAX {
@@ -445,6 +491,12 @@ tick :: proc(g: ^Game, dt_in: f64) {
 		si += 1
 	}
 
+	if g.finished {
+		g.finish_t += dt
+	}
+	if g.shop.flash > 0 {
+		g.shop.flash = max(0, g.shop.flash - dt)
+	}
 	if g.peg_t > 0 {
 		g.peg_t = max(0, g.peg_t - dt)
 	}
@@ -552,7 +604,9 @@ resolve_lines :: proc(g: ^Game) -> bool {
 	if n == 0 {
 		return false
 	}
-	// Each line scores as a hand with the moon, before its sheep leave the fold.
+	// Each line scores as a hand with the moon, before its sheep leave the fold. A lap of the board
+	// brings a new moon, but every line of this clear is cut by the moon it was made under.
+	cut := g.moon
 	best_total: i32 = -1
 	for li in 0 ..< found.n {
 		l := found.lines[li]
@@ -560,8 +614,9 @@ resolve_lines :: proc(g: ^Game) -> bool {
 		for k in 0 ..< l.n {
 			cards[k] = g.fold[l.col + k * l.dx][l.row + k * l.dy]
 		}
-		ls := score_line(cards[:l.n], g.moon)
-		g.points += i64(ls.total)
+		ls := score_line(cards[:l.n], cut)
+		add_points(g, ls.total)
+		g.best_hand = max(g.best_hand, ls.total)
 		if ls.total > best_total {
 			best_total = ls.total
 			g.last_line = ls

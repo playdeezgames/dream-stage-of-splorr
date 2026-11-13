@@ -46,6 +46,7 @@ Gfx :: enum {
 	Fold,
 	Grass,
 	Moon,
+	Nightstand,
 }
 
 // A colour swap for one draw: identity unless changed.

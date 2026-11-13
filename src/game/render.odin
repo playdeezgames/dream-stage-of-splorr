@@ -12,7 +12,7 @@ PANEL_X :: PASTURE_COLS * TILE
 STRIP_Y :: PASTURE_Y + PASTURE_ROWS * TILE
 
 MOON_X :: 30
-MOON_Y :: 36
+MOON_Y :: 28
 CALL_X :: FOLD_X + FOLD_COLS * TILE + 6
 
 COLOR_SKY_BG :: COLOR_BLACK
@@ -96,6 +96,7 @@ draw_game :: proc(f: ^Frame, g: ^Game) {
 	print_glyph(f, RANKS[g.moon.rank - 1], MOON_X + 10, MOON_Y + 12, COLOR_BLACK)
 	print_glyph(f, suit_glyph(g.moon.suit), MOON_X + 16, MOON_Y + 12, COLOR_BLACK)
 	print(f, "the cut", MOON_X - 4, MOON_Y + 34, COLOR_MID)
+	draw_board(f, g)
 
 	// The fold.
 	for col in 0 ..< i32(FOLD_COLS) {
@@ -152,6 +153,7 @@ draw_game :: proc(f: ^Frame, g: ^Game) {
 		}
 	}
 
+	draw_gfx(f, .Nightstand, NIGHTSTAND_X * TILE, PASTURE_Y + NIGHTSTAND_Y * TILE)
 	for i in 0 ..< int(g.flock_count) {
 		s := g.flock[i]
 		draw_sheep(f, s.card, int(s.x) * TILE, PASTURE_Y + int(s.y) * TILE, s.flip)
@@ -189,6 +191,50 @@ draw_game :: proc(f: ^Frame, g: ^Game) {
 	draw_panel(f, g)
 	draw_strip(f, g)
 	draw_notice(f, g)
+	if g.shop.open {
+		draw_shop(f, g)
+	}
+	if g.finished {
+		draw_finish(f, g)
+	}
+}
+
+BOARD_X :: 6
+BOARD_Y :: 86
+STAGE_Y :: 74
+
+// The sleep stage and a 121-hole cribbage board: three rows of 40 holes, back and forth in fives,
+// and the last hole at the end. The peg is the lap's points.
+draw_board :: proc(f: ^Frame, g: ^Game) {
+	buf: [16]u8
+	w := print(f, stage_name(g.lap), BOARD_X, STAGE_Y, COLOR_WHITE)
+	w += print(f, " x", BOARD_X + w, STAGE_Y, COLOR_MID)
+	print(f, commas(buf[:], multiplier(g)), BOARD_X + w, STAGE_Y, COLOR_YELLOW)
+	hole := peg_hole(g)
+	for i in 0 ..< i32(BOARD_HOLES) {
+		x, y := hole_xy(i)
+		c: u8 = COLOR_MID // holes still to go
+		if i < hole {
+			c = COLOR_SKY // holes the peg has passed this lap
+		}
+		if i == hole {
+			fill_rect(f, x, y - 1, 2, 2, COLOR_YELLOW)
+			continue
+		}
+		set_px(f, x, y, c)
+	}
+}
+
+hole_xy :: proc(i: i32) -> (int, int) {
+	if i >= 120 {
+		return BOARD_X + 89, BOARD_Y + 4
+	}
+	row := int(i / 40)
+	k := int(i % 40)
+	if row == 1 {
+		k = 39 - k
+	}
+	return BOARD_X + k * 2 + k / 5, BOARD_Y + row * 4
 }
 
 draw_panel :: proc(f: ^Frame, g: ^Game) {
@@ -209,6 +255,10 @@ draw_panel :: proc(f: ^Frame, g: ^Game) {
 	print(f, commas(buf[:], i64(g.best_chain)), x, 120, COLOR_WHITE)
 	print(f, "POINTS", x, 136, COLOR_LIGHT)
 	print(f, commas(buf[:], g.points), x, 146, COLOR_WHITE)
+	print(f, "ZZZ", x, 162, COLOR_LIGHT)
+	print(f, commas(buf[:], g.zzz), x, 172, COLOR_YELLOW)
+	print(f, "COUNT BY", x, 188, COLOR_LIGHT)
+	print(f, commas(buf[:], count_by(g)), x, 198, COLOR_WHITE)
 }
 
 draw_strip :: proc(f: ^Frame, g: ^Game) {
@@ -236,8 +286,26 @@ draw_notice :: proc(f: ^Frame, g: ^Game) {
 	color: u8 = COLOR_LIGHT
 	switch g.notice {
 	case .None:
-		lines = {"Walk into sheep,", "then under a pen", "press Space."}
+		if int(g.time / 5) % 2 == 0 {
+			lines = {"Walk into sheep,", "then under a pen", "press Space."}
+		} else {
+			lines = {"Walk into the", "nightstand to", "spend yer Zzz."}
+		}
 		color = COLOR_MID
+	case .Stage:
+		print(f, "Deeper: ", x, NOTICE_Y, COLOR_YELLOW)
+		print(f, stage_name(g.lap), x + 8 * GLYPH_W, NOTICE_Y, COLOR_WHITE)
+		buf: [16]u8
+		w := print(f, "Zzz x", x, NOTICE_Y + 10, COLOR_YELLOW)
+		print(f, commas(buf[:], multiplier(g)), x + w, NOTICE_Y + 10, COLOR_WHITE)
+		print(f, "and a new moon.", x, NOTICE_Y + 20, COLOR_YELLOW)
+		return
+	case .Clear_Wait:
+		lines = {"A sheep is still", "in the air.", ""}
+	case .Clear_Empty:
+		lines = {"That pen's empty.", "", ""}
+	case .Took_All:
+		lines = {"The clear took", "all yer Zzz.", ""}
 	case .Arms_Full:
 		lines = {"Yer arms are full", "", ""}
 	case .Arms_Empty:
@@ -305,5 +373,144 @@ draw_calls :: proc(f: ^Frame, g: ^Game) {
 	}
 	if .Thirty_One in r.calls {
 		call(f, x, &y, "Thirty-one ", 2)
+	}
+}
+
+SHOP_X :: 20
+SHOP_Y :: 52
+SHOP_W :: PANEL_X - 2 * SHOP_X
+SHOP_H :: 146
+SHOP_ROW_H :: 14
+
+// The nightstand's menu.
+draw_shop :: proc(f: ^Frame, g: ^Game) {
+	fill_rect(f, SHOP_X, SHOP_Y, SHOP_W, SHOP_H, COLOR_BLACK)
+	fill_rect(f, SHOP_X, SHOP_Y, SHOP_W, 1, COLOR_YELLOW)
+	fill_rect(f, SHOP_X, SHOP_Y + SHOP_H - 1, SHOP_W, 1, COLOR_YELLOW)
+	fill_rect(f, SHOP_X, SHOP_Y, 1, SHOP_H, COLOR_YELLOW)
+	fill_rect(f, SHOP_X + SHOP_W - 1, SHOP_Y, 1, SHOP_H, COLOR_YELLOW)
+	x := SHOP_X + 8
+	print(f, "THE NIGHTSTAND", x, SHOP_Y + 6, COLOR_YELLOW)
+	buf: [32]u8
+	w := print(f, "Yer Zzz: ", x + 132, SHOP_Y + 6, COLOR_LIGHT)
+	print(f, commas(buf[:], g.zzz), x + 132 + w, SHOP_Y + 6, COLOR_YELLOW)
+
+	for row in Shop_Row {
+		y := SHOP_Y + 22 + int(row) * SHOP_ROW_H
+		chosen := row == g.shop.row
+		flashing := g.shop.flash > 0 && g.shop.flash_row == row
+		if chosen {
+			fill_rect(f, SHOP_X + 2, y - 3, SHOP_W - 4, SHOP_ROW_H, COLOR_RED if flashing else COLOR_NAVY)
+			print_glyph(f, 16, x, y, COLOR_YELLOW)
+		}
+		name_x := x + 10
+		detail_x := x + 106
+		a, b: [16]u8
+		switch row {
+		case .Armful:
+			print(f, "Bigger armful", name_x, y, COLOR_WHITE)
+			print_upgrade(f, detail_x, y, i64(g.armful), i64(g.armful + 1), g.armful < ARMFUL_MAX)
+		case .Grass:
+			print(f, "Greener grass", name_x, y, COLOR_WHITE)
+			print_upgrade(f, detail_x, y, i64(g.flock_target), i64(g.flock_target + GRASS_SHEEP), g.grass_level < GRASS_LEVELS)
+			print(f, "sheep", detail_x + 60, y, COLOR_MID)
+		case .Count_By:
+			print(f, "Count by", name_x, y, COLOR_WHITE)
+			more := int(g.count_level) + 1 < len(COUNT_BY)
+			print_upgrade(f, detail_x, y, count_by(g), COUNT_BY[min(int(g.count_level) + 1, len(COUNT_BY) - 1)], more)
+		case .Clear:
+			print(f, "Clear a pen", name_x, y, COLOR_WHITE)
+			cw := print(f, "< pen ", detail_x, y, COLOR_LIGHT)
+			cw += print(f, commas(a[:], i64(g.shop.col) + 1), detail_x + cw, y, COLOR_WHITE)
+			print(f, " >", detail_x + cw, y, COLOR_LIGHT)
+		case .Leave:
+			print(f, "Leave", name_x, y, COLOR_WHITE)
+		}
+		if cost, ok := price(g, row); ok {
+			text := commas(b[:], cost)
+			c: u8 = COLOR_YELLOW if g.zzz >= cost else COLOR_MID
+			print(f, text, SHOP_X + SHOP_W - 8 - text_width(text), y, c)
+		} else if row != .Leave {
+			print(f, "MAX", SHOP_X + SHOP_W - 8 - text_width("MAX"), y, COLOR_MID)
+		}
+	}
+	if g.shop.row == .Clear {
+		// Show which pen a clear takes.
+		cx, _ := fold_cell_xy(g.shop.col, 0)
+		print_glyph(f, 31, cx + 5, FOLD_Y - 8, COLOR_RED)
+		cost, _ := price(g, .Clear)
+		if g.zzz < cost && fold_full(g) {
+			print(f, "The fold is full: a clear takes all yer Zzz.", x, SHOP_Y + 22 + 5 * SHOP_ROW_H + 2, COLOR_RED)
+		}
+	}
+	print(f, "Up/Down choose, Space buy, Esc leave", x, SHOP_Y + SHOP_H - 14, COLOR_MID)
+}
+
+print_upgrade :: proc(f: ^Frame, x, y: int, now, next: i64, more: bool) {
+	a, b: [16]u8
+	w := print(f, commas(a[:], now), x, y, COLOR_LIGHT)
+	if more {
+		w += print(f, " > ", x + w, y, COLOR_MID)
+		print(f, commas(b[:], next), x + w, y, COLOR_WHITE)
+	}
+}
+
+// h:mm:ss
+clock :: proc(buf: []u8, seconds: f64) -> string {
+	s := i64(seconds)
+	h, m, sec := s / 3600, s / 60 % 60, s % 60
+	n := 0
+	a: [16]u8
+	for ch in transmute([]u8)commas(a[:], h) {
+		buf[n] = ch
+		n += 1
+	}
+	buf[n] = ':'
+	buf[n + 1] = u8('0' + m / 10)
+	buf[n + 2] = u8('0' + m % 10)
+	buf[n + 3] = ':'
+	buf[n + 4] = u8('0' + sec / 10)
+	buf[n + 5] = u8('0' + sec % 10)
+	return string(buf[:n + 6])
+}
+
+// The millionth sheep: the insomniac is asleep. The night's totals, the bests, and a new night.
+draw_finish :: proc(f: ^Frame, g: ^Game) {
+	fill_rect(f, 0, 0, PANEL_X, SCREEN_H, COLOR_BLACK)
+	for i in 0 ..< 64 {
+		set_px(f, (i * 97 + 13) % PANEL_X, (i * 57 + 5) % SCREEN_H, COLOR_DARK if i % 2 == 0 else COLOR_MID)
+	}
+	centre :: proc(f: ^Frame, text: string, y: int, c: u8) {
+		print(f, text, PANEL_X / 2 - text_width(text) / 2, y, c)
+	}
+	centre(f, "THE MILLIONTH SHEEP.", 18, COLOR_YELLOW)
+	draw_gfx(f, .Insomniac, PANEL_X / 2 - TILE, 32, scale = 2)
+	centre(f, "Out like a light. Zzz...", 70, COLOR_WHITE)
+
+	row :: proc(f: ^Frame, y: int, label, value: string) {
+		print(f, label, 70, y, COLOR_LIGHT)
+		print(f, value, 250 - text_width(value), y, COLOR_WHITE)
+	}
+	buf: [32]u8
+	stage: [32]u8
+	n := copy(stage[:], stage_name(g.lap))
+	if c := stage_cycle(g.lap); c > 0 {
+		n += copy(stage[n:], ", cycle ")
+		a: [16]u8
+		n += copy(stage[n:], commas(a[:], i64(c)))
+	}
+	row(f, 88, "Time asleep", clock(buf[:], g.finish_time))
+	row(f, 98, "Points", commas(buf[:], g.points))
+	row(f, 108, "Best hand", commas(buf[:], i64(g.best_hand)))
+	row(f, 118, "Top chain", commas(buf[:], i64(g.best_chain)))
+	row(f, 128, "Deepest stage", string(stage[:n]))
+
+	b := g.bests
+	centre(f, "BESTS, ALL NIGHTS", 146, COLOR_YELLOW)
+	row(f, 158, "Fastest night", clock(buf[:], b.fastest))
+	row(f, 168, "Most points", commas(buf[:], b.points))
+	row(f, 178, "Best hand", commas(buf[:], i64(b.hand)))
+	if g.finish_t >= FINISH_PAUSE && int(g.finish_t * 2) % 2 == 0 {
+		centre(f, "Space: a new night", 198, COLOR_YELLOW)
 	}
 }
