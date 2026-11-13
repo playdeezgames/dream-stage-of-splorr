@@ -11,6 +11,14 @@ Genre: the dig-through-a-huge-pile incremental (the user's references: One Milli
 - **The game ends at the millionth sheep counted**: the dreamer falls asleep. That's the win and the end screen.
 - **Controls are Bush Master's set**: arrows/WASD, Space (OK), Esc (Cancel), gamepad d-pad/A/B, touch pads. No mouse clicks, no extra keys (F for the feedback form is the vault's rule).
 
+Taken one at a time later the same day:
+- **A clear you can't afford takes all yer Zzz** (even zero), so a full fold never leaves the player stuck.
+- **The moon's card changes each sleep stage** (each lap of the board), so lines can be planned around it.
+- **The player is the insomniac in pyjamas** (and nightcap), counting their own sheep.
+- **All art is Claude-made in the Anvil**: sheep, insomniac, fence, moon, nightstand, sheepdog. One look, all AI-made.
+- **After the millionth sheep: the totals, then a new night.** The end screen leads to a fresh start (upgrades reset), and the finished night's totals are kept as bests to beat.
+- **A run to the millionth sheep should take about two hours** (like One Million Coins). Every number is tuned to that; the numbers themselves are still Claude's.
+
 ## The loop
 
 1. **The pasture** (the lower part of the screen) holds the flock: a few dozen sheep wandering at a time, drawn from the million. A counter shows the total left ("999,812 sheep to count").
@@ -18,7 +26,7 @@ Genre: the dig-through-a-huge-pile incremental (the user's references: One Milli
 3. **The fence** runs along the top of the pasture, with **the sheepfold**, a 7-by-6 Connect Four rack, above it. At the fence, Left/Right picks a column and Space sends the first sheep held over the fence.
 4. **The jump counts.** Each sheep that jumps the fence is counted, toward the million, and **pegged**, scored like cribbage's pegging play (below).
 5. **It lands** in the chosen column and falls to the lowest empty row, as in Connect Four.
-6. **Four in a row of one suit** (across, down or diagonal) is a **line**. The line scores as a **cribbage hand**: the four sheep plus **the moon as the cut card** (the moon shows a card and changes each night). Then the four sheep fall asleep and float off as Zzz, and the sheep above them drop down. Chain clears score again.
+6. **Four in a row of one suit** (across, down or diagonal) is a **line**. The line scores as a **cribbage hand**: the four sheep plus **the moon as the cut card** (the moon shows a card and changes each sleep stage). Then the four sheep fall asleep and float off as Zzz, and the sheep above them drop down. Chain clears score again.
 
 ### Pegging (each jump)
 
@@ -40,7 +48,7 @@ A line plus the moon is scored as a five-card cribbage hand: fifteens (2 each), 
 
 ## Clearing the fold (the user's choice: pay to clear)
 
-When the fold is full, or whenever the player likes, a column can be cleared for Zzz from the shop. The sheep in it are counted but not scored. **Claude's proposal to stop a soft-lock:** if the fold is full and the player can't afford the price, the clear takes all the Zzz they have instead, so they are never stuck. The user may change this.
+When the fold is full, or whenever the player likes, a column can be cleared for Zzz from the shop. The sheep in it are counted but not scored. If the fold is full and the player can't afford the price, the clear takes all the Zzz they have instead (the user's decision), so they are never stuck.
 
 ## The shop
 
@@ -53,7 +61,7 @@ A nightstand tile in the corner. Walk into it and a menu opens: Up/Down to choos
 
 ## Ending
 
-Counting the 1,000,000th sheep: the dreamer falls asleep. An end screen shows the night's totals (sheep counted, points, best hand, sleep stage reached, time taken). Play may carry on afterwards, if the user wants that.
+Counting the 1,000,000th sheep: the dreamer falls asleep. An end screen shows the night's totals (sheep counted, points, best hand, sleep stage reached, time taken), then offers a new night: a fresh start with upgrades reset, keeping the bests to beat.
 
 ## Scope for 72 hours (deadline November 16, 2026 12:00 UTC)
 
@@ -69,4 +77,4 @@ Nice to have: a different sky and music per sleep stage, chain-clear celebration
 
 ## Open (Claude's placeholders until the user says)
 
-Every number: armful size, prices, the stage multiplier, how many sheep are in the pasture, dog speed. Also who the player is (the insomniac in pyjamas is the default), the art source, and whether play goes on after the millionth sheep.
+Every number (armful size, prices, the stage multiplier, how many sheep are in the pasture, dog speed), tuned so a run takes about two hours. Nothing else is open.
