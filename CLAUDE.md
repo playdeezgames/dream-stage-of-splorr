@@ -47,7 +47,7 @@ Odin compiled to `js_wasm32`, a 384 by 216 software framebuffer of Sweetie-16 pa
 
 ## Standing rules (full text in the vault's `Home.md`)
 
-- **"Push" means `git push`; "ship" means itch.io.** Do neither unless the user says that word. **The jam submission is not scheduled in Coxswain** and does not count against one ship a day (the user, November 14, 2026): the jam's deadline decides. Put the page up on itch.io and submit it to the jam.
+- **"Push" means `git push`; "ship" means itch.io.** Do neither unless the user says that word. **The jam submission is not scheduled in Coxswain** and does not count against one ship a day (the user, November 14, 2026): the jam's deadline decides. The page is up (https://thegrumpygamedev.itch.io/counting-sheep-of-splorr) and the entry was submitted on November 14, 2026; after the deadline only bug fixes, balance tweaks and small text changes. The itch build was uploaded in the dashboard, not by butler, so the first `shippit.sh --push` creates the `html` channel; remove the old dashboard upload then.
 - **GitHub Pages is live** since November 13, 2026 (the user's go-ahead) at https://playdeezgames.github.io/dream-stage-of-splorr/, served from `main` `/docs`. To update it: `tools/pages.sh`, commit `docs/`, push (each push needs the user's go-ahead).
 - itch.io embed: "Click to launch in fullscreen", never a fixed size. Footer back links and the "Send feedback" LootLocker link on the web page.
 - **Public repo: no 1-Bit Kingdom art**, ever. Keep every licence record and credit.
