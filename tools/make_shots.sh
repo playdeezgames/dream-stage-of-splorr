@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Renders real frames natively (the frame-dump tests in src/game/dump_test.odin) into
-# assets/screenshots/01-play.png, 02-clear.png, 03-shop.png, 04-end.png (the 384x216 screen, 3x).
+# assets/screenshots/01-play.png, 02-clear.png, 03-shop.png, 04-end.png (the 384x216 screen, 3x) and
+# assets/portal.png (480x360, for the oeuvre-of-splorr portal).
 # Needs Pillow. Run: tools/make_shots.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -14,6 +15,11 @@ from PIL import Image
 d = sys.argv[1]
 for src, dst in [("play", "01-play"), ("clear", "02-clear"), ("shop", "03-shop"), ("end", "04-end")]:
     Image.open(os.path.join(d, src + ".ppm")).resize((384 * 3, 216 * 3), Image.NEAREST).save("assets/screenshots/%s.png" % dst)
-print("assets/screenshots/01-play.png 02-clear.png 03-shop.png 04-end.png")
+# The portal picture (oeuvre-of-splorr): 480x360, the moon, the fold and the pasture, sky text painted out.
+im = Image.open(os.path.join(d, "play.ppm")).convert("RGB")
+for box in [(0, 0, 96, 26), (0, 60, 96, 104), (208, 0, 320, 104)]:
+    im.paste((26, 28, 44), box)
+im.crop((24, 4, 264, 184)).resize((480, 360), Image.NEAREST).save("assets/portal.png")
+print("assets/screenshots/01-play.png 02-clear.png 03-shop.png 04-end.png, assets/portal.png")
 PY
 rm -rf "$D"
