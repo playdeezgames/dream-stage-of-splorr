@@ -2,7 +2,7 @@
 # Prepares the itch.io html build: tests, a size-optimised web build, a zip. Pushes ONLY with --push.
 # Never commits, never deletes anything but its own zip. Usage: tools/ship.sh [--push]
 # There is no itch.io page yet; the target below is the expected slug, to confirm with the user
-# before the first push (one ship a day, booked through Coxswain).
+# before the first push. As a jam entry it needs no Coxswain booking (the user, November 14, 2026).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 TARGET="thegrumpygamedev/counting-sheep-of-splorr:html"
